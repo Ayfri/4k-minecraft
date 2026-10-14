@@ -3,6 +3,7 @@ export const SIZE = 512;
 export const MASK = SIZE - 1;
 export const HEIGHT = 64;
 export const TOP = HEIGHT - 1;
+export const SEA = 24;
 
 export const AIR = 0;
 export const WATER = 1;

@@ -1,7 +1,7 @@
 import shader from './shader.wgsl' with { type: 'text' };
 
-const P: [number, number, number] = [256, 10, 256];
-const A: [number, number] = [0, -.2];
+const P: [number, number, number] = [256.5, 70, 256.5];
+const A: [number, number] = [0, -.6];
 const keys: Record<string, boolean> = {};
 const key = (code: string) => +!!keys[code];
 
