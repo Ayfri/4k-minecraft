@@ -18,7 +18,7 @@ fn H(c: vec3u) -> f32 {
 }
 
 /** Voxel index of a cell, one byte per cell. */
-fn I(c: vec3i) -> u32 { return dot(vec3u(c & vec3i(MASK, TOP, MASK)), vec3u(1, 1 << 18, 512)); }
+fn I(c: vec3i) -> u32 { return dot(vec3u(c) & vec3u(MASK, TOP, MASK), vec3u(1, 1 << 18, 512)); }
 
 /** The block at a cell: stone below the world, air above it, x and z wrap. */
 fn B(c: vec3i) -> u32 {
@@ -36,7 +36,7 @@ fn A(P: vec3f) -> vec2u {
 fn F(u: vec2u) -> u32 {
   let a = abs(i32(u.x) * 2 - 15);
   if N.y == 0 {
-    if K == TUFT { return select(0u, K, u.y > 1 + u32(H(vec3u(u.x, 3, 3)) * 10)); }
+    if K == TUFT { return K * u32(u.y > 1 + u32(H(vec3u(u.x, 3, 3)) * 10)); }
     if a < 2 && u.y > 9 { return GRASS; }
     if a + abs(i32(u.y) - 7) * 2 < 7 { return 1 + u32(H(vec3u(C.zyx)) * 2) * 2; }
   }
@@ -46,10 +46,10 @@ fn F(u: vec2u) -> u32 {
 /** Amanatides-Woo march past blocks up to `k`, returns the distance and leaves cell, face and block in C, N, K (flowers: opaque texels). */
 fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   let s = sign(d);
-  let r = 1 / max(abs(d), vec3f(1e-6));
+  let r = 1 / (abs(d) + 1e-6);
   C = vec3i(floor(o));
   N = vec3f();
-  var e = (s * (vec3f(C) - o) + s * .5 + .5) * r;
+  var e = (s * (vec3f(C) - o + .5) + .5) * r;
   for (var i = 0; i < n; i++) {
     K = B(C);
     let t = dot(N, e - r);
@@ -59,7 +59,7 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
     e += N * r;
     C += vec3i(N * s);
   }
-  K = 0u;
+  K = 0;
   return 1e9;
 }
 
@@ -89,7 +89,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
     k = F(t);
   } else if b > SNOW && H(vec3u(t / 2, b)) < .8 { k = STONE; }
   let e = COLORS[k];
-  let c = vec3f(vec3u(e >> 8, e >> 4, e) & vec3u(15)) / 15 * (m + (q - .5) * f32(e >> 12) / 8);
+  let c = vec3f(vec3u(e >> 8, e >> 4, e) % 16) / 15 * (m + (q - .5) * f32(e >> 12) / 8);
   return c * c;
 }
 
