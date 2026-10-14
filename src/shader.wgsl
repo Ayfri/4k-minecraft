@@ -63,22 +63,25 @@ fn S(d: vec3f) -> vec3f {
 fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   var k = b;
   let q = H(vec3u(t, b));
-  var m = 1 - .3 * q;
+  var m = 1.1 - .4 * q;
   let a = abs(vec2i(t) * 2 - 15);
   if b == GRASS {
-    if n.y < 0 || (n.y == 0 && t.y > u32(H(vec3u(t.x, 7, b)) * 4) + 2) { k = DIRT; }
+    if n.y < 0 || (n.y == 0 && t.y > u32(H(vec3u(t.x, 7, b)) * 4)) { k = DIRT; }
   } else if b == LOG {
     if n.y == 0 { m *= .7 + .3 * H(vec3u(t.x, 7, b)); } else {
-      k = PLANKS;
-      m *= 1 - .25 * f32(max(a.x, a.y) / 4 % 2);
+      let r = max(a.x, a.y);
+      k = select(PLANKS, b, r > 13);
+      m *= 1 - .25 * f32(r / 4 % 2);
     }
   } else if b == LEAVES {
     if q < .3 { m *= .5; }
   } else if b == PLANKS {
-    if t.y % 4 == 0 { m *= .7; }
+    if t.y % 4 == 0 || (t.x + t.y / 4 % 2 * 8) % 16 == 0 { m *= .7; }
   } else if b == BRICKS {
     if t.y % 4 == 0 || (t.x + t.y / 4 % 2 * 4) % 8 == 0 { return vec3f(.7) * m; }
-  } else if b > SNOW && q < .75 { k = STONE; }
+  } else if b == STONE {
+    m = .8 + .15 * q + .25 * H(vec3u(t / 2, 9));
+  } else if b > SNOW && H(vec3u(t / 2, b)) < .8 { k = STONE; }
   return vec3f((vec3u(COLORS[k]) >> vec3u(8, 4, 0)) & vec3u(15)) / 15 * m;
 }
 
