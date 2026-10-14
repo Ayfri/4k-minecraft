@@ -39,6 +39,11 @@ test('renames parameters that follow an attribute and never picks a reserved wor
 	expect(out).toBe('@vertex fn b(@builtin(vertex_index)a:u32)->@builtin(position)vec4f{return vec4f(f32(a));}');
 });
 
+test('keeps the arguments of @builtin and @interpolate even when a local is named like them', () => {
+	const out = renameWgsl('fn f(@builtin(position)position:vec4f,@location(0)@interpolate(flat)flat:u32)->@location(0)vec4f{return position+vec4f(f32(flat));}');
+	expect(out).toBe('fn f(@builtin(position)b:vec4f,@location(0)@interpolate(flat)a:u32)->@location(0)vec4f{return b+vec4f(f32(a));}');
+});
+
 /** Substrings that must survive the rename, and names that must be gone. */
 const RENAME: [string, string, string[], string[]][] = [
 	['struct members', 'struct S{alpha:f32}var<private>V:S;fn go()->f32{let alpha=1;return V.alpha+alpha;}', ['V.alpha', 'S{alpha:f32}'], []],
@@ -80,5 +85,5 @@ test('substitutes whole words only, longest names first, and leaves member reads
 });
 
 test('the real shader keeps its head after substitution, minification and renaming', async () => {
-	expect((await shader(`${import.meta.dir}/../src/shader.wgsl`, true)).slice(0, 80)).toMatchInlineSnapshot(`"struct af{p:vec3f,t:f32,a:vec3f,s:f32,r:vec2f,h:f32}@group(0)@binding(0)var<stor"`);
+	expect((await shader(`${import.meta.dir}/../src/shader.wgsl`)).slice(0, 80)).toMatchInlineSnapshot(`"struct af{p:vec3f,t:f32,a:vec3f,s:f32,r:vec2f,h:f32}@group(0)@binding(0)var<stor"`);
 });

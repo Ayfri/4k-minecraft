@@ -26,7 +26,7 @@ export function renameWgsl(s: string) {
 	const names = [...declared].filter(n => n.length > 1 && !members.has(n)).sort((a, b) => counts.get(b)! - counts.get(a)! || (a < b ? -1 : 1));
 	const pool = [...LETTERS, ...LETTERS.flatMap(a => [...LETTERS, ...'0123456789'].map(b => a + b))].filter(n => !taken.has(n) && !SHORT_RESERVED.has(n));
 	const renames = new Map(names.map((n, i) => [n, pool[i]!]));
-	return s.replace(/(?<![.\w])[A-Za-z_]\w*/g, w => renames.get(w) ?? w);
+	return s.replace(/@(?:builtin|interpolate)\s*\([^)]*\)|(?<![.\w])[A-Za-z_]\w*/g, w => renames.get(w) ?? w);
 }
 
 /** Replaces whole-word constant names with their numeric value, as an abstract literal. */
