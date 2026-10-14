@@ -74,16 +74,16 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   var q = H(vec3u(t, b));
   var m = 1.;
   if b == GRASS {
-    if n.y < 0 || (n.y == 0 && t.y > u32(H(vec3u(t.x, 7, b)) * 4)) { k = DIRT; }
+    if n.y < 0 || (n.y == 0 && t.y > 1 + u32(H(vec3u(t.x, 7, b)) * 3)) { k = DIRT; }
   } else if b == LOG {
     if n.y == 0 { m = .7 + .6 * H(vec3u(t.x, t.y / 5, b)); } else {
       let a = abs(vec2i(t) * 2 - 15);
       let r = max(a.x, a.y);
-      k = select(PLANKS, b, r > 13);
-      m = 1 - .25 * f32(r / 4 % 2);
+      k = select(PLANKS, b, r > 12);
+      m = 1 - .25 * f32((r + 1) / 4 % 2);
     }
   } else if b == PLANKS {
-    if t.y % 4 > 2 { m = .65; }
+    if t.y % 4 > 2 || (t.x + t.y / 4 % 2 * 8) % 16 == 3 { m = .65; }
   } else if b == BRICKS {
     if t.y % 4 > 2 || (t.x + t.y / 4 % 2 * 4) % 8 == 3 { k = STONE; }
   } else if b < WATER {
