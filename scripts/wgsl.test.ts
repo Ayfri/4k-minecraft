@@ -32,12 +32,17 @@ test.each(MINIFY)('minifies %s', (_name, src, expected) => {
 
 test('renames declared names consistently and keeps members, swizzles, builtins and i++', () => {
 	const src = 'struct Uni{p:vec3f,t:f32}@group(0)@binding(0)var<uniform>U:Uni;fn helper(pos:vec3f,scale:f32)->f32{let total=pos.x*scale+U.t;var count=0;for(var i=0;i<4;i++){count+=1;}return total+f32(count)+helper(pos.yzx,scale);}';
-	expect(renameWgsl(src)).toBe('struct d{p:vec3f,t:f32}@group(0)@binding(0)var<uniform>U:d;fn e(b:vec3f,c:f32)->f32{let f=b.x*c+U.t;var a=0;for(var i=0;i<4;i++){a+=1;}return f+f32(a)+e(b.yzx,c);}');
+	expect(renameWgsl(src)).toBe('struct a{p:vec3f,t:f32}@group(0)@binding(0)var<uniform>U:a;fn b(d:vec3f,e:f32)->f32{let f=d.x*e+U.t;var a=0;for(var c=0;c<4;c++){a+=1;}return f+f32(a)+b(d.yzx,e);}');
+});
+
+test('a local takes any letter but the globals its function reads', () => {
+	const out = renameWgsl('var<private>a:f32;fn first(){let long=1.;a=long;}fn second(){let other=2.;let more=other;}');
+	expect(out).toBe('var<private>a:f32;fn b(){let c=1.;a=c;}fn c(){let a=2.;let b=a;}');
 });
 
 test('renames parameters that follow an attribute and never picks a reserved word', () => {
 	const out = renameWgsl('@vertex fn vert(@builtin(vertex_index)index:u32)->@builtin(position)vec4f{return vec4f(f32(index));}');
-	expect(out).toBe('@vertex fn b(@builtin(vertex_index)a:u32)->@builtin(position)vec4f{return vec4f(f32(a));}');
+	expect(out).toBe('@vertex fn a(@builtin(vertex_index)b:u32)->@builtin(position)vec4f{return vec4f(f32(b));}');
 });
 
 test('keeps the arguments of @builtin and @interpolate even when a local is named like them', () => {
@@ -48,7 +53,7 @@ test('keeps the arguments of @builtin and @interpolate even when a local is name
 /** Substrings that must survive the rename, and names that must be gone. */
 const RENAME: [string, string, string[], string[]][] = [
 	['struct members', 'struct S{alpha:f32}var<private>V:S;fn go()->f32{let alpha=1;return V.alpha+alpha;}', ['V.alpha', 'S{alpha:f32}'], []],
-	['swizzle spelling of a local', 'fn go()->f32{let xy=1;let v=vec2f(1);return v.xy.x+f32(xy);}', ['let xy=1', 'v.xy.x'], ['go']],
+	['swizzle spelling of a local', 'fn go()->f32{let xy=1;let v=vec2f(1);return v.xy.x+f32(xy);}', ['.xy.x'], ['go', 'xy']],
 	['return arrow', 'fn helper()->f32{return 1;}fn other()->f32{return helper();}', ['->f32{return 1;}'], ['helper', 'other']],
 	['nested generics', 'var<private>counter:array<vec2<f32>,4>;fn go(){counter[0]=vec2f(1);}', ['array<vec2<f32>,4>'], ['counter', 'go']],
 	['attributes and builtins', '@fragment fn main(@location(0)fragcolor:vec4f)->@location(0)vec4f{return fragcolor;}', ['@fragment', '@location(0)', 'vec4f'], ['fragcolor', 'main']],
