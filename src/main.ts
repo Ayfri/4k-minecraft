@@ -67,19 +67,21 @@ const put = (i: number, b: number) => {
 	queue.writeBuffer(world, i & ~3, V, i & ~3, 4);
 };
 
-/** Left button (0) breaks the targeted block, right button (2) places grass in front of it unless that cell is taken or inside the player. */
+/** Left button (0) breaks the targeted block, right button (2) places the selected block in front of it unless that cell is taken or inside the player. */
 const act = (button: number) => {
 	if (!hit) return;
 	const [i, free] = hit;
 	if (button < 2) return put(i, 0);
 	const old = V[free]!;
 	if (old < 2) {
-		put(free, 2);
+		put(free, selected);
 		if (collides(V, P)) put(free, old);
 	}
 };
 
-onkeydown = onkeyup = e => (keys[e.code] = e.type < 'keyu');
+/** Block placed by the right button, picked with the digit keys 1 to 9 (ids 2 to 10, `Digit1` is grass). */
+let selected = 2;
+onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = (+e.code[5]! || selected - 1) + 1));
 onmousedown = e => (document.pointerLockElement ? act(e.button) : c.requestPointerLock({ unadjustedMovement: true }));
 oncontextmenu = () => !1;
 onmousemove = e => {
@@ -119,5 +121,6 @@ if (DEV) {
 		return (performance.now() - start) / n;
 	};
 	const time = (seconds: number) => (clock = seconds * 1e3 - performance.now());
-	Object.assign(globalThis, { dbg: { A, P, V, act, bench, time, v } });
+	const select = (block = selected) => (selected = block);
+	Object.assign(globalThis, { dbg: { A, P, V, act, bench, select, time, v } });
 }

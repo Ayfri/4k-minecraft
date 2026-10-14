@@ -100,7 +100,7 @@ await Bun.sleep(Number(values.wait));
 /** `--keys "w:500,space:100"` holds each key for the given milliseconds, in order. */
 for (const step of values.keys ? values.keys.split(',') : []) {
 	const [key = '', ms = '100'] = step.split(':');
-	const code = key === 'space' ? 'Space' : key === 'shift' ? 'ShiftLeft' : `Key${key.toUpperCase()}`;
+	const code = key === 'space' ? 'Space' : key === 'shift' ? 'ShiftLeft' : /\d/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`;
 	const text = key === 'space' ? ' ' : key.length === 1 ? key : '';
 	await send('Input.dispatchKeyEvent', { code, key: key === 'space' ? ' ' : key, text, type: 'keyDown' });
 	await Bun.sleep(Number(ms));
