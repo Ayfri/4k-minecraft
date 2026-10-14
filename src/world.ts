@@ -6,9 +6,6 @@ export const TOP = HEIGHT - 1;
 export const SEA = 24;
 /** Highest column that gets a beach and no trees. */
 export const SHORE = SEA + 1;
-/** Seconds of a full day and night cycle. */
-export const DAY = 600;
-
 export const AIR = 0;
 export const WATER = 1;
 export const GRASS = 2;
@@ -25,8 +22,8 @@ export const IRON = 12;
 export const DIAMOND = 13;
 export const BLOCKS = 14;
 
-/** Voxel index of a position, one byte per cell. x and z wrap by bitmask, y outside [0, HEIGHT) lands past the buffer. Floors first, truncation would send -0.2 to cell 0 instead of 511. */
-export const idx = (x: number, y: number, z: number) => (Math.floor(x) & MASK) | ((Math.floor(z) & MASK) << 9) | (Math.floor(y) << 18);
+/** Voxel index of a position, one byte per cell. x and z wrap by bitmask, y at or past HEIGHT lands past the buffer. The bitwise operators truncate, so x and z shift by SIZE first to floor down to -SIZE. */
+export const idx = (x: number, y: number, z: number) => (MASK & (x + SIZE)) | ((MASK & (z + SIZE)) << 9) | (y << 18);
 
 export type Vec3 = [number, number, number];
 
@@ -41,7 +38,7 @@ export const collides = (V: Uint8Array, p: Vec3) => {
 	return false;
 };
 
-/** Moves `p` by `v * dt` one axis at a time, zeroing the velocity it hits, and wraps x and z. Returns whether the feet landed. A step must stay under one block: `dt <= .03` with `v[1] >= -30`. */
+/** Moves `p` by `v * dt` one axis at a time, zeroing the velocity it hits, and wraps it into [0, SIZE) (y stays under HEIGHT). Returns whether the feet landed. A step must stay under one block: `dt <= .03` with `v[1] >= -30`. */
 export const move = (V: Uint8Array, p: Vec3, v: Vec3, dt: number) => {
 	let ground = false;
 	for (const a of [0, 1, 2] as const) {
@@ -53,8 +50,8 @@ export const move = (V: Uint8Array, p: Vec3, v: Vec3, dt: number) => {
 			} else p[a] -= v[a] * dt;
 			v[a] = 0;
 		}
+		p[a] = (p[a] + SIZE) % SIZE;
 	}
-	for (const a of [0, 2] as const) p[a] -= Math.floor(p[a] / SIZE) * SIZE;
 	return ground;
 };
 

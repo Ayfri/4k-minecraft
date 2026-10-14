@@ -35,11 +35,11 @@ const renderBinds = bind(render);
 /** The targeted voxel index and the free cell in front of it, refreshed every frame. */
 let hit: [number, number] | undefined;
 
-/** Writes the 10 floats of the `Uniforms` struct: eye, time, canvas size, yaw and pitch, seed, targeted voxel index (-1 for none). */
-const upload = (seconds: number, eye: Vec3) => queue.writeBuffer(uniforms, 0, new Float32Array([...eye, seconds, c.width, c.height, ...A, 1, hit ? hit[0] : -1]));
+/** Writes the 11 floats of the `Uniforms` struct: eye, time, view direction, seed, canvas size, targeted voxel index (-1 for none). */
+const upload = (seconds: number, eye: Vec3, dir: Vec3) => queue.writeBuffer(uniforms, 0, new Float32Array([...eye, seconds, ...dir, 1, c.width, c.height, hit?.[0] ?? -1]));
 
 const t0 = DEV ? performance.now() : 0;
-upload(0, P);
+upload(0, P, P);
 const gen = device.createCommandEncoder();
 const genPass = gen.beginComputePass();
 genPass.setPipeline(compute);
@@ -58,7 +58,7 @@ const draw = () => {
 	pass.setBindGroup(0, renderBinds);
 	pass.draw(3);
 	pass.end();
-	return encoder.finish();
+	queue.submit([encoder.finish()]);
 };
 
 /** Sets a voxel and uploads the 4-byte word that holds it. */
@@ -95,7 +95,8 @@ let ground = false;
 const frame = (now: number) => {
 	const dt = Math.min(now - last, 30) / 1e3;
 	last = now;
-	const [sy, sp, cy, cp] = [Math.sin(A[0]), Math.sin(A[1]), Math.cos(A[0]), Math.cos(A[1])];
+	const [sy, sp] = A.map(Math.sin) as typeof A;
+	const [cy, cp] = A.map(Math.cos) as typeof A;
 	const [fw, rt] = [key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA')];
 	const swim = V[idx(P[0], P[1] + .5, P[2])] == WATER;
 	v[0] = (fw * sy + rt * cy) * 4.3;
@@ -103,9 +104,10 @@ const frame = (now: number) => {
 	v[1] = swim ? (key('Space') ? 3 : Math.max(v[1] - 8.4 * dt, -2)) : key('Space') && ground ? 8.5 : Math.max(v[1] - 28 * dt, -30);
 	ground = move(V, P, v, dt);
 	const eye: Vec3 = [P[0], P[1] + 1.62, P[2]];
-	hit = target(V, eye, [sy * cp, sp, cy * cp]);
-	upload((DEV ? now + clock : now) / 1e3, eye);
-	queue.submit([draw()]);
+	const dir: Vec3 = [sy * cp, sp, cy * cp];
+	hit = target(V, eye, dir);
+	upload((DEV ? now + clock : now) / 1e3, eye, dir);
+	draw();
 	requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);
@@ -116,7 +118,7 @@ if (DEV) {
 	console.log(`gen ${(performance.now() - t0).toFixed(1)} ms`);
 	const bench = async (n = 100) => {
 		const start = performance.now();
-		for (let i = 0; i < n; i++) queue.submit([draw()]);
+		for (let i = 0; i < n; i++) draw();
 		await queue.onSubmittedWorkDone();
 		return (performance.now() - start) / n;
 	};

@@ -1,4 +1,4 @@
-struct Uniforms { p: vec3f, t: f32, r: vec2f, a: vec2f, s: f32, h: f32 }
+struct Uniforms { p: vec3f, t: f32, a: vec3f, s: f32, r: vec2f, h: f32 }
 @group(0) @binding(0) var<storage, read_write> W: array<u32>;
 @group(0) @binding(1) var<uniform> U: Uniforms;
 
@@ -18,13 +18,13 @@ fn H(c: vec3u) -> f32 {
 }
 
 /** Voxel index of a cell, one byte per cell. */
-fn I(c: vec3i) -> u32 { return u32(c.x & MASK) | (u32(c.z & MASK) << 9) | (u32(c.y) << 18); }
+fn I(c: vec3i) -> u32 { return dot(vec3u(c & vec3i(MASK, TOP, MASK)), vec3u(1, 1 << 18, 512)); }
 
 /** The block at a cell: stone below the world, air above it, x and z wrap. */
 fn B(c: vec3i) -> u32 {
-  if u32(c.y) > TOP { return select(0u, STONE, c.y < 0); }
+  if u32(c.y) > TOP { return u32(c.y < 0) * STONE; }
   let i = I(c);
-  return extractBits(W[i >> 2], (i & 3) * 8, 8);
+  return (W[i >> 2] >> (i % 4 * 8)) & 255;
 }
 
 /** Amanatides-Woo march through blocks up to `k`, returns the distance and leaves the hit cell, face and block in C, N and K. */
@@ -48,15 +48,6 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
 
 @vertex fn v(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
   return vec4f(vec2f(vec2u(i & 1, i >> 1)) * 4 - 1, 0, 1);
-}
-
-/** The sun direction and the daylight in [0, 1], set once per pixel by the fragment shader. */
-var<private> L: vec3f;
-var<private> D: f32;
-
-/** Sky gradient without sun or stars, also the colour distant terrain fades to. */
-fn S(d: vec3f) -> vec3f {
-  return mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .03;
 }
 
 /** Colour of texel `t` (16x16 per face) of block `b` seen from the side `n`, the same tile for every block of a type. */
@@ -86,31 +77,30 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
 }
 
 @fragment fn f(@builtin(position) q: vec4f) -> @location(0) vec4f {
-  let s = sin(U.a);
-  let c = cos(U.a);
-  let fw = vec3f(s.x * c.y, s.y, c.x * c.y);
-  let r = vec3f(c.x, 0, -s.x);
+  let fw = U.a;
+  let r = normalize(vec3f(fw.z, 0, -fw.x));
   let uv = (2 * q.xy - U.r) / U.r.y;
   let d = normalize(fw * 1.4 + r * uv.x + cross(r, fw) * uv.y);
   let w = U.t * .01047 + .3;
-  L = normalize(vec3f(cos(w), sin(w), .4));
-  D = saturate(L.y * 2 + .4);
+  let L = normalize(vec3f(cos(w), sin(w), .4));
+  let D = saturate(L.y * 2 + .4);
+  /** Sky gradient without sun or stars, also the colour distant terrain fades to. */
+  let sky = mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .03;
   let eyeIn = B(vec3i(floor(U.p))) == WATER;
-  var t = M(U.p, d, select(0u, WATER, eyeIn), 256);
-  var wd = select(0., t, eyeIn);
+  var t = M(U.p, d, u32(eyeIn), 256);
+  var wd = f32(eyeIn) * t;
   if K == WATER {
-    let t0 = t;
-    t += M(U.p + d * (t + .01), d, WATER, 128) + .01;
-    wd = t - t0;
+    wd = M(U.p + d * (t + .01), d, WATER, 128) + .01;
+    t += wd;
   }
-  var col = S(d) + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000) + step(.985, H(vec3u(d * 200 + 250))) * (1 - D);
+  var col = sky + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000) + step(.985, H(vec3u(d * 200 + 250))) * (1 - D);
   if K > 0 {
     let P = U.p + d * t;
     let n = -N * sign(d);
     var u = vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
     if n.y > 0 {
       let r = u32(H(vec3u(C.zyx)) * 4);
-      if (r & 1) > 0 { u = u.yx; }
+      if r % 2 > 0 { u = u.yx; }
       if r > 1 { u.x = 15 - u.x; }
     }
     let e = abs(fract(P) - .5) * (1 - N);
@@ -128,7 +118,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
     let sh = max(dot(n, lv), 0) * step(1e9, M(P + n * .01, lv, WATER, 64));
     col = al * (li * sh + am);
     if ol { col = 1 - col; }
-    col = mix(col, S(d), smoothstep(40, 120, t));
+    col = mix(col, sky, smoothstep(40, 120, t));
   }
   col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .3));
   let z = abs(q.xy - U.r / 2);

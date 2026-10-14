@@ -80,5 +80,5 @@ test('substitutes whole words only, longest names first, and leaves member reads
 });
 
 test('the real shader keeps its head after substitution, minification and renaming', async () => {
-	expect((await shader(`${import.meta.dir}/../src/shader.wgsl`, true)).slice(0, 80)).toMatchInlineSnapshot(`"struct ac{p:vec3f,t:f32,r:vec2f,a:vec2f,s:f32,h:f32}@group(0)@binding(0)var<stor"`);
+	expect((await shader(`${import.meta.dir}/../src/shader.wgsl`, true)).slice(0, 80)).toMatchInlineSnapshot(`"struct ac{p:vec3f,t:f32,a:vec3f,s:f32,r:vec2f,h:f32}@group(0)@binding(0)var<stor"`);
 });
