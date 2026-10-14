@@ -1,23 +1,10 @@
+/** Slow (about a minute), kept out of `bun test` by `bunfig.toml`: `bun run test:fuzz`. */
 import { expect, test } from 'bun:test';
-import { noise, roundTrip } from './lib/page.ts';
+import { check, noise } from './lib/page.ts';
 
 const LATIN = Array.from({ length: 256 }, (_, i) => String.fromCharCode(i));
 const DASHES = [...'-->a'];
 const HEX = [...'0123456789abcdef'];
-
-/** Packs, then holds the page to every rule the HTML comment and the decoder need. A stream that cannot sit in a comment is skipped. */
-async function check(js: string) {
-	const { comment, decoded, html } = await roundTrip(js).catch(e => {
-		if (String(e).includes('breaks the HTML comment')) return {} as Partial<Awaited<ReturnType<typeof roundTrip>>>;
-		throw e;
-	});
-	if (!html) return false;
-	expect(comment).not.toContain('--');
-	expect(comment).not.toMatch(/^>|^->|-$/);
-	expect(html.includes(13)).toBe(false);
-	expect(decoded).toBe(js);
-	return true;
-}
 
 /** Table of inputs aimed at the stream edges: tiny, empty-ish, dash and `>` heavy, repeated bytes, every byte value. */
 const TABLE: [string, string][] = [

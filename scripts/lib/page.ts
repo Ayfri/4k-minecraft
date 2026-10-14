@@ -1,4 +1,5 @@
 /** Test helpers: reads a packed page back the way a browser does (windows-1252, CR normalized) and runs its decoder against a fake canvas. */
+import { expect } from 'bun:test';
 import { pack } from '../pack.ts';
 
 /** WHATWG windows-1252 for 0x80-0x9F, hardcoded so the tests never trust the runtime's TextDecoder labels. */
@@ -8,13 +9,13 @@ const CP1252 = [
 ];
 
 /** The text the HTML parser hands over: 1252 decoding, CRLF and lone CR become LF, NUL becomes U+FFFD. */
-export const parse = (html: Uint8Array) =>
+const parse = (html: Uint8Array) =>
 	Array.from(html, b => String.fromCharCode(b >= 0x80 && b < 0xa0 ? CP1252[b - 0x80]! : b || 0xfffd))
 		.join('')
 		.replace(/\r\n?/g, '\n');
 
 /** Packs `js` and returns the comment as the parser sees it, plus what the page's decoder passes to `eval`. */
-export async function roundTrip(js: string) {
+async function roundTrip(js: string) {
 	const { html } = await pack(js);
 	const text = parse(html);
 	const start = text.indexOf('<!--') + 4;
@@ -23,6 +24,20 @@ export async function roundTrip(js: string) {
 	const script = text.slice(text.indexOf('<script>', end) + 8, text.indexOf('</script>', end));
 	const decoded = new Promise<string>(resolve => new Function('c', 'eval', script)({ firstChild: { data: comment } }, resolve));
 	return { comment, decoded: await decoded, html };
+}
+
+/** Packs, then holds the page to every rule the HTML comment and the decoder need. Returns false when no stream of `js` can sit in a comment. */
+export async function check(js: string) {
+	const { comment, decoded, html } = await roundTrip(js).catch(e => {
+		if (String(e).includes('breaks the HTML comment')) return {} as Partial<Awaited<ReturnType<typeof roundTrip>>>;
+		throw e;
+	});
+	if (!html) return false;
+	expect(comment).not.toContain('--');
+	expect(comment).not.toMatch(/^>|^->|-$/);
+	expect(html.includes(13)).toBe(false);
+	expect(decoded).toBe(js);
+	return true;
 }
 
 /** Seeded noise (mulberry32) over `alphabet`, its deflate stream is dense in CR and escape bytes. */

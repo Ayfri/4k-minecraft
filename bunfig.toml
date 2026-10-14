@@ -3,4 +3,5 @@ plugins = ["./scripts/wgsl-plugin.ts"]
 
 [test]
 coverageReporter = ["text"]
+pathIgnorePatterns = ["**/*.fuzz.test.ts"]
 timeout = 30000
