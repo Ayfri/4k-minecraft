@@ -1,7 +1,4 @@
-/**
- * Picks the minifier setup that gives the smallest packed page. Every variant is ranked by its libdeflate length (a fast proxy),
- * the best two are then packed for real. `bun run build --rank` prints the ranking.
- */
+/** Variants are ranked by libdeflate length (a fast proxy), the best two are packed for real. */
 import { minify, type MinifyOptions } from 'terser';
 import { pack, type Packed } from './pack.ts';
 
