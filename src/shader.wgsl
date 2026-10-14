@@ -152,9 +152,11 @@ fn Q(p: vec3f, c: f32) -> f32 {
 
 /** Height of the terrain column at x, z. */
 fn T(x: u32, z: u32) -> f32 {
+  let p = vec3f(vec3u(x, 0, z));
+  let m = pow(Q(p, 256), 4);
   var e = 0.;
-  for (var c = 128.; c > 8; c *= .5) { e += Q(vec3f(vec3u(x, 0, z)), c) * c / 256; }
-  return floor(clamp(SEA + (e - .4) * 90, 2, 60));
+  for (var c = 128.; c > 8; c *= .5) { e += Q(p, c) * c / 256; }
+  return floor(clamp(SEA + (e - .4) * 90 + m * 35, 2, 60));
 }
 
 @compute @workgroup_size(64) fn g(@builtin(global_invocation_id) u: vec3u) {
@@ -162,12 +164,13 @@ fn T(x: u32, z: u32) -> f32 {
   for (var k = 0u; k < 4; k++) {
     let x = (u.x & 127) * 4 + k;
     let h = T(x, z);
+    let desert = Q(vec3f(vec3u(x + 64, 0, z + 64)), 128) > .7;
     let t = vec2u(x, z) / 8;
     let r = H(vec3u(t.x, 99, t.y));
     let tx = t.x * 8 + 2 + u32(r * 40) % 4;
     let tz = t.y * 8 + 2 + u32(r * 400) % 4;
     let th = T(tx, tz);
-    let tree = r < .3 && th > SHORE && th < 46;
+    let tree = r < .3 && th > SHORE && th < 46 && !desert;
     for (var y = 0u; y < 64; y++) {
       let c = vec3u(x, y, z);
       let p = vec3f(c);
@@ -179,7 +182,7 @@ fn T(x: u32, z: u32) -> f32 {
         else if tree && abs(d.y + .5) < 2 && dot(d, d) < 5.5 - q { b = LEAVES; }
         else if p.y <= SEA { b = WATER; }
       } else {
-        let beach = h <= SHORE;
+        let beach = h <= SHORE || desert;
         b = GRASS;
         if h > 52 + q * 6 { b = SNOW; }
         if p.y < h { b = DIRT; }
