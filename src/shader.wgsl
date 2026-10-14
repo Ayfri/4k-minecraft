@@ -92,32 +92,45 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   let w = U.t * .01047 + .3;
   L = normalize(vec3f(cos(w), sin(w), .4));
   D = saturate(L.y * 2 + .4);
-  let t = M(U.p, d, 0, 256);
-  if K == 0 { return vec4f(sqrt(S(d) + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000)), 1); }
-  let P = U.p + d * t;
-  let n = -N * sign(d);
-  var u = vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
-  if n.y > 0 {
-    let r = u32(H(vec3u(C.zyx)) * 4);
-    if (r & 1) > 0 { u = u.yx; }
-    if r > 1 { u.x = 15 - u.x; }
+  let eyeIn = B(vec3i(floor(U.p))) == WATER;
+  var t = M(U.p, d, select(0u, WATER, eyeIn), 256);
+  var wd = select(0., t, eyeIn);
+  var fr = 0.;
+  if K == WATER {
+    let t0 = t;
+    t += M(U.p + d * (t + .01), d, WATER, 128) + .01;
+    wd = t - t0;
+    fr = pow(1 - abs(d.y), 5);
   }
-  let e = abs(fract(P) - .5) * (1 - N);
-  let ol = f32(I(C)) == U.h && any(e > vec3f(.46));
-  let lv = L * sign(L.y);
-  let li = vec3f(.1, .12, .22) + vec3f(.65, .5, .3) * saturate(L.y * 5);
-  let al = X(K, u, n);
-  var ao = 0.;
-  let a = C + vec3i(n);
-  for (var i = 0; i < 4; i++) {
-    let o = a + vec3i(select(n.zxy, n.yzx, i > 1)) * (i % 2 * 2 - 1);
-    if B(o) > WATER { ao += 1.5 - distance(P, vec3f(o) + .5); }
+  var col = S(d) + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000);
+  if K > 0 {
+    let P = U.p + d * t;
+    let n = -N * sign(d);
+    var u = vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
+    if n.y > 0 {
+      let r = u32(H(vec3u(C.zyx)) * 4);
+      if (r & 1) > 0 { u = u.yx; }
+      if r > 1 { u.x = 15 - u.x; }
+    }
+    let e = abs(fract(P) - .5) * (1 - N);
+    let ol = f32(I(C)) == U.h && any(e > vec3f(.46));
+    let lv = L * sign(L.y);
+    let li = vec3f(.1, .12, .22) + vec3f(.65, .5, .3) * saturate(L.y * 5);
+    let al = X(K, u, n);
+    var ao = 0.;
+    let a = C + vec3i(n);
+    for (var i = 0; i < 4; i++) {
+      let o = a + vec3i(select(n.zxy, n.yzx, i > 1)) * (i % 2 * 2 - 1);
+      if B(o) > WATER { ao += 1.5 - distance(P, vec3f(o) + .5); }
+    }
+    let am = (vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3);
+    let sh = max(dot(n, lv), 0) * step(1e9, M(P + n * .01, lv, WATER, 64));
+    col = al * (li * sh + am);
+    if ol { col = 1 - col; }
+    col = mix(col, S(d), smoothstep(40, 120, t));
   }
-  let am = (vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3);
-  let sh = max(dot(n, lv), 0) * step(1e9, M(P + n * .01, lv, WATER, 64));
-  var col = al * (li * sh + am);
-  if ol { col = 1 - col; }
-  return vec4f(sqrt(mix(col, S(d), smoothstep(40, 120, t))), 1);
+  col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .3));
+  return vec4f(sqrt(mix(col, S(-d), fr)), 1);
 }
 
 /** Value noise with lattice cells of `c` blocks, wrapped so that it tiles the world when `c` divides 512 (and 64 on y). */
