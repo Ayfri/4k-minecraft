@@ -57,6 +57,12 @@ export const move = (V: Uint8Array, p: Vec3, v: Vec3, dt: number) => {
 	return ground;
 };
 
+/** Next vertical velocity: jumping from the ground or out of water (feet in a water cell), a slow sink in water, a fall capped at 30 in air. */
+export const lift = (V: Uint8Array, p: Vec3, vy: number, dt: number, jump: number, ground: boolean) => {
+	const swim = V[idx(...p)] == WATER;
+	return jump && (ground || swim) ? 8.5 : swim ? Math.max(vy - 8.4 * dt, -2) : Math.max(vy - 28 * dt, -30);
+};
+
 /** Marches 6 blocks along `dir` from `eye` and returns the voxel index of the first solid cell and of the cell before it (-1 when the eye is inside). */
 export const target = (V: Uint8Array, eye: Vec3, dir: Vec3): [hit: number, place: number] | undefined => {
 	let place = -1;

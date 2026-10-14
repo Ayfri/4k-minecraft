@@ -1,5 +1,5 @@
 import shader from './shader.wgsl' with { type: 'text' };
-import { collides, idx, move, target, WATER, type Vec3 } from './world.ts';
+import { collides, lift, move, target, WATER, type Vec3 } from './world.ts';
 
 /** Feet position, spawned above the grass east of the lake and dropped onto the terrain. */
 const P: Vec3 = [280.5, 64, 280.5];
@@ -98,10 +98,9 @@ const frame = (now: number) => {
 	const [sy, sp] = A.map(Math.sin) as typeof A;
 	const [cy, cp] = A.map(Math.cos) as typeof A;
 	const [fw, rt] = [key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA')];
-	const swim = V[idx(P[0], P[1] + .5, P[2])] == WATER;
 	v[0] = (fw * sy + rt * cy) * 4.3;
 	v[2] = (fw * cy - rt * sy) * 4.3;
-	v[1] = swim ? (key('Space') ? 3 : Math.max(v[1] - 8.4 * dt, -2)) : key('Space') && ground ? 8.5 : Math.max(v[1] - 28 * dt, -30);
+	v[1] = lift(V, P, v[1], dt, key('Space'), ground);
 	ground = move(V, P, v, dt);
 	const eye: Vec3 = [P[0], P[1] + 1.62, P[2]];
 	const dir: Vec3 = [sy * cp, sp, cy * cp];

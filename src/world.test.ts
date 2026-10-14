@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { collides, FLOWER, HEIGHT, idx, move, SIZE, solid, STONE, target, type Vec3, WATER } from './world.ts';
+import { collides, FLOWER, HEIGHT, idx, lift, move, SIZE, solid, STONE, target, type Vec3, WATER } from './world.ts';
 
 /** A 16 MiB world with stone for every cell below `floor`. */
 const flat = (floor: number) => new Uint8Array(1 << 24).fill(STONE, 0, idx(0, floor, 0));
@@ -90,6 +90,46 @@ describe('move', () => {
 			expect(p[1]).toBe(11);
 			expect(collides(V, p)).toBe(false);
 		}
+	});
+});
+
+describe('lift', () => {
+	/** Frame loop of the game: walks towards +x at 4.3 and holds Space, returns the feet after `steps` frames. */
+	const walkJumping = (V: Uint8Array, p: Vec3, steps: number) => {
+		const v: Vec3 = [0, 0, 0];
+		let ground = false;
+		for (let i = 0; i < steps; i++) {
+			v[0] = 4.3;
+			v[1] = lift(V, p, v[1], DT, 1, ground);
+			ground = move(V, p, v, DT);
+		}
+		return p;
+	};
+
+	test('a jump from the ground clears one block, never two', () => {
+		const V = flat(10);
+		V[idx(103, 10, 100)] = STONE;
+		expect(walkJumping(V, [100.5, 10, 100.5], 60)[0]).toBeGreaterThan(105);
+		V[idx(103, 11, 100)] = STONE;
+		expect(walkJumping(V, [100.5, 10, 100.5], 60)[0]).toBeLessThan(103);
+	});
+
+	test.each([14, 15])('a lake exits onto a shore whose top block is at %d, water ending at 14', top => {
+		const V = flat(10);
+		for (let x = 90; x < 110; x++) {
+			for (let y = 10; y < (x < 103 ? 15 : top + 1); y++) V[idx(x, y, 100)] = x < 103 ? WATER : STONE;
+		}
+		const p = walkJumping(V, [100.5, 12, 100.5], 45);
+		expect(p[0]).toBeGreaterThan(104);
+		expect(p[1]).toBeGreaterThanOrEqual(top + 1);
+	});
+
+	test('water sinks slowly, air falls fast, both capped', () => {
+		const V = flat(10);
+		V[idx(100, 20, 100)] = WATER;
+		const water: Vec3 = [100.5, 20, 100.5];
+		expect(lift(V, water, -5, DT, 0, false)).toBe(-2);
+		expect(lift(V, [100.5, 21, 100.5], -29.9, DT, 0, false)).toBe(-30);
 	});
 });
 
