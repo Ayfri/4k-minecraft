@@ -27,7 +27,7 @@ Notch's entry for the Java 4K contest, released in December 2009, was 2581 bytes
 
 ## Browser support
 
-Chrome and Edge with WebGPU, opening the file straight from `file://`, are the tested targets. The page saves bytes with recent WebGPU shorthands (a `GPUBuffer` passed directly as a binding resource, the canvas texture passed as the render target view, the size-only `copyBufferToBuffer`), so browsers that do not implement them yet cannot run it. Pointer lock asks for raw mouse input and falls back to a plain lock where raw input is not available.
+Chrome on Windows with WebGPU, opening the file straight from `file://`, is the tested target. Edge shares its engine but is untested. The page saves bytes with recent WebGPU shorthands (a `GPUBuffer` passed directly as a binding resource, the canvas texture passed as the render target view, the size-only `copyBufferToBuffer`), so browsers that do not implement them yet cannot run it. Pointer lock asks for raw mouse input and falls back to a plain lock where raw input is not available.
 
 ## How the 4 KB packing works
 
