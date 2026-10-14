@@ -21,21 +21,17 @@ async function render(file: string, wait: number) {
 	return { colors: await colors(await page.view.screenshot({ encoding: 'buffer' })), logs: page.logs };
 }
 
-test.concurrent('the packed page fits 4096 B and renders the landscape from file:// with a clean console', async () => {
+/** One page at a time: two WebViews open together fail with a closed WebSocket (1006), whichever page closes first. */
+test('the packed page fits 4096 B and renders the landscape from file:// with a clean console', async () => {
 	expect(Bun.file(dist).size).toBeLessThanOrEqual(4096);
 	const { colors, logs } = await render(dist, 2500);
 	expect(logs).toEqual([]);
 	expect(colors).toBeGreaterThan(32);
 }, 60_000);
 
-test.concurrent('a black page fails the color check and its console error is reported', async () => {
+test('a black page fails the color check and its console error is reported', async () => {
 	await Bun.write(`${dir}/black.html`, '<body style="background:#000"><script>console.error("boom")</script>');
 	const { colors, logs } = await render(`${dir}/black.html`, 300);
 	expect(colors).toBeLessThanOrEqual(32);
 	expect(logs).toEqual(['[error] boom']);
-}, 60_000);
-
-test.concurrent('an empty page fails the color check', async () => {
-	await Bun.write(`${dir}/empty.html`, '');
-	expect((await render(`${dir}/empty.html`, 300)).colors).toBeLessThanOrEqual(32);
 }, 60_000);

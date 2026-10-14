@@ -22,11 +22,13 @@ interface PageOptions {
 
 const PROFILES = `${tmpdir()}/claude-temp/4k`;
 
-const release = async (chrome: Bun.Subprocess, profile: string) => {
-	Bun.WebView.closeAll();
-	chrome.kill();
+const release = async (chrome: Bun.Subprocess, profile: string, view?: Bun.WebView) => {
+	view?.close();
+	/** `kill()` only ends the browser process, its children keep files of the profile locked for a while on Windows. */
+	if (process.platform === 'win32') await Bun.spawn(['taskkill', '/F', '/T', '/PID', String(chrome.pid)], { stderr: 'ignore', stdout: 'ignore' }).exited;
+	else chrome.kill();
 	await chrome.exited;
-	await rm(profile, { force: true, maxRetries: 10, recursive: true, retryDelay: 100 });
+	await rm(profile, { force: true, maxRetries: 20, recursive: true, retryDelay: 100 });
 };
 
 export class Page implements AsyncDisposable {
@@ -60,6 +62,7 @@ export class Page implements AsyncDisposable {
 			],
 			{ stderr: 'ignore', stdout: 'ignore' },
 		);
+		let opened: Bun.WebView | undefined;
 		try {
 			let ws = '';
 			for (let i = 0; i < 200 && !ws; i++) {
@@ -70,12 +73,12 @@ export class Page implements AsyncDisposable {
 			if (!ws) throw new Error('no DevTools endpoint');
 			const logs: string[] = [];
 			/** The backend consumes `Runtime.consoleAPICalled` for the `console` option, a listener on that event never fires. */
-			const view = new Bun.WebView({
+			const view = (opened = new Bun.WebView({
 				backend: { type: 'chrome', url: ws },
 				console: (type, ...args) => logs.push(`[${type}] ${args.map(a => (typeof a === 'object' && a ? (a as Remote).description : a)).join(' ')}`),
 				height,
 				width,
-			});
+			}));
 			const on = <T>(event: `${string}.${string}`, listener: (data: T) => void) => view.addEventListener(event, e => listener((e as MessageEvent<T>).data));
 			await view.navigate('about:blank');
 			/** Only one `cdp()` and one `evaluate()` may be in flight per view. */
@@ -86,7 +89,7 @@ export class Page implements AsyncDisposable {
 			await view.navigate(/^[a-z]{2,}:/.test(target) ? target : pathToFileURL(target).href);
 			return new Page(logs, view, chrome, profile);
 		} catch (error) {
-			await release(chrome, profile);
+			await release(chrome, profile, opened);
 			throw error;
 		}
 	}
@@ -104,7 +107,7 @@ export class Page implements AsyncDisposable {
 	}
 
 	[Symbol.asyncDispose]() {
-		return release(this.chrome, this.profile);
+		return release(this.chrome, this.profile, this.view);
 	}
 }
 
