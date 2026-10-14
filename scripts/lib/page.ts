@@ -14,9 +14,15 @@ const parse = (html: Uint8Array) =>
 		.join('')
 		.replace(/\r\n?/g, '\n');
 
-/** Packs `js` and returns the comment as the parser sees it, plus what the page's decoder passes to `eval`. */
+/** Packs `js` and returns the comment as the parser sees it, plus what the page's decoder passes to `eval`. Undefined when no stream fits a comment. */
 async function roundTrip(js: string) {
-	const { html } = await pack(js);
+	const html = await pack(js).then(
+		packed => packed.html,
+		e => {
+			if (!String(e).includes('breaks the HTML comment')) throw e;
+		},
+	);
+	if (!html) return undefined;
 	const text = parse(html);
 	const start = text.indexOf('<!--') + 4;
 	const end = text.indexOf('-->', start);
@@ -28,11 +34,9 @@ async function roundTrip(js: string) {
 
 /** Packs, then holds the page to every rule the HTML comment and the decoder need. Returns false when no stream of `js` can sit in a comment. */
 export async function check(js: string) {
-	const { comment, decoded, html } = await roundTrip(js).catch(e => {
-		if (String(e).includes('breaks the HTML comment')) return {} as Partial<Awaited<ReturnType<typeof roundTrip>>>;
-		throw e;
-	});
-	if (!html) return false;
+	const trip = await roundTrip(js);
+	if (!trip) return false;
+	const { comment, decoded, html } = trip;
 	expect(comment).not.toContain('--');
 	expect(comment).not.toMatch(/^>|^->|-$/);
 	expect(html.includes(13)).toBe(false);

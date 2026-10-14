@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import * as world from '../src/world.ts';
 import { shader } from './shader.ts';
 import { minifyWgsl, renameWgsl, substituteConstants } from './wgsl.ts';
 
@@ -84,6 +85,12 @@ test('substitutes whole words only, longest names first, and leaves member reads
 	expect(substituteConstants('SEAX.SEA SEA', { SEA: 24 })).toBe('SEAX.24 24');
 });
 
-test('the real shader keeps its head after substitution, minification and renaming', async () => {
-	expect((await shader(`${import.meta.dir}/../src/shader.wgsl`)).slice(0, 80)).toMatchInlineSnapshot(`"struct af{p:vec3f,t:f32,a:vec3f,s:f32,r:vec2f,h:f32}@group(0)@binding(0)var<stor"`);
+test('the real shader comes out substituted, minified and renamed', async () => {
+	const out = await shader(`${import.meta.dir}/../src/shader.wgsl`);
+	expect(out).not.toMatch(/\/\/|\/\*|\s{2,}|\n/);
+	for (const name of Object.keys(world).filter(n => n.length > 2 && typeof world[n as keyof typeof world] == 'number')) expect(out).not.toMatch(new RegExp(`\\b${name}\\b`));
+	const members = new Set(out.match(/(?<=\.)\w+/g));
+	const declared = [...out.matchAll(/\b(?:fn|let|const|struct)\s+(\w+)|\bvar(?:<[^>]*>|\s)\s*(\w+)|[(,)]\s*(\w+)\s*:/g)].map(m => m[1] ?? m[2] ?? m[3]!);
+	expect(declared.length).toBeGreaterThan(0);
+	expect(declared.filter(n => n.length > 2 && !members.has(n))).toEqual([]);
 });

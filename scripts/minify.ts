@@ -78,7 +78,7 @@ async function variants(wrapped: string): Promise<Variant[]> {
 }
 
 /** CR-free streams can still break the comment, a trailing byte changes the stream until one fits. */
-async function packFit(js: string): Promise<Packed> {
+export async function packFit(js: string): Promise<Packed> {
 	for (const suffix of ['', ';', ' ', ';;']) {
 		try {
 			return await pack(js + suffix);
