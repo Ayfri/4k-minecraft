@@ -14,7 +14,7 @@ interface BuildOptions {
 }
 
 /** The ESM bundle of the game, the WGSL goes through `wgsl-plugin.ts` (minified in prod) and `metafile` lists what each input adds. */
-async function bundle(dev: boolean) {
+export async function bundle(dev: boolean) {
 	const result = await Bun.build({
 		define: { DEV: String(dev) },
 		entrypoints: [`${root}/src/main.ts`],
