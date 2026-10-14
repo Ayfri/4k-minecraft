@@ -34,6 +34,7 @@ fn A(P: vec3f) -> vec2u {
 
 /** Colour index of the plant texel `u` of the cell C: blades for a tuft, a stem and a red or yellow head for a flower, 0 where transparent (the top face always is). */
 fn F(u: vec2u) -> u32 {
+  if K > TUFT { return u32(K != LEAVES || H(vec3u(u, K)) > .3); }
   let a = abs(i32(u.x) * 2 - 15);
   if N.y == 0 {
     if K == TUFT { return K * u32(u.y > 1 + u32(H(vec3u(u.x, 3, 3)) * 10)); }
@@ -53,7 +54,7 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   for (var i = 0; i < n; i++) {
     K = B(C);
     let t = dot(N, e - r);
-    if K > k && (K > TUFT || F(A(o + d * t)) > 0) { return t; }
+    if K > k && F(A(o + d * t)) > 0 { return t; }
     if C.y > TOP && d.y > 0 { break; }
     N = step(e, min(e.yzx, e.zxy));
     e += N * r;
