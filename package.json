@@ -9,7 +9,6 @@
     "check": "tsc",
     "dev": "bun scripts/serve.ts",
     "gate": "bun scripts/gate.ts",
-    "minify:search": "bun scripts/minify-search.ts",
     "screenshots": "bun scripts/screenshots.ts",
     "test": "bun test",
     "test:bot": "bun scripts/build.ts --dev && bun test --path-ignore-patterns \"node_modules/**\" scripts/house.bot.test.ts",

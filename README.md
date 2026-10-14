@@ -63,7 +63,7 @@ Chrome on Windows with WebGPU, opening the file straight from `file://`, is the 
 
 **Zopfli and libdeflate.** The deflate stream comes from zopfli (run in a pool of workers, one per core) and libdeflate with several settings. Each candidate is packed into a full page and the smallest page wins, which is not always the shortest raw stream because the escapes change the size.
 
-**Minifier variants.** The bundle is minified by a set of terser option variants, by Bun's minifier and by both chained. Every variant is ranked by its libdeflate length and the best two are packed for real. `bun run build --rank` prints the ranking.
+**Closure Compiler, then terser.** The bundle goes through Closure Compiler (SIMPLE level, the canvas global `c` as its only extern), then terser with options and a mangler alphabet tuned once by a grid search over terser's options and several minifiers, about 66 B smaller than a search among terser and Bun variants. Without the `google-closure-compiler` binary the build falls back to terser alone and the page is about 60 B larger.
 
 **WGSL minify, rename and constants.** The shader is stripped of comments and every optional space, its declared multi-letter names are renamed to the shortest free ones (most used first), and the numeric exports of `src/world.ts` (`SIZE`, `HEIGHT`, `WATER`, ...) are substituted into it by name, so game and shader share one set of constants.
 
@@ -71,7 +71,7 @@ Chrome on Windows with WebGPU, opening the file straight from `file://`, is the 
 
 ```powershell
 bun install
-bun run build         # dist/index.html, prints the size and fails above 4096 B (--rank lists the minifier variants, --verbose adds the bundle inputs and every variant, --out <dir> writes elsewhere, --dev writes dist/dev.html)
+bun run build         # dist/index.html, prints the size and fails above 4096 B (--verbose adds the bundle inputs, --out <dir> writes elsewhere, --dev writes dist/dev.html)
 bun run dev           # Bun.serve dev server with HMR on http://localhost:3000, unminified, DEV hooks and the bot on
 bun run check         # tsc
 bun run test          # unit tests, the bot simulation and the e2e render of dist/index.html
