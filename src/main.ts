@@ -124,5 +124,13 @@ if (DEV) {
 	};
 	const time = (seconds: number) => (clock = seconds * 1e3 - performance.now());
 	const select = (block = selected) => (selected = block);
-	Object.assign(globalThis, { dbg: { A, P, V, act, bench, select, time, v } });
+	Object.assign(globalThis, {
+		dbg: {
+			A, P, V, act, bench,
+			get hit() {
+				return hit;
+			},
+			select, time, v,
+		} satisfies Dbg,
+	});
 }

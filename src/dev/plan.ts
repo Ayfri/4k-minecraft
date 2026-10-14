@@ -197,27 +197,33 @@ export const site = (V: Uint8Array, near: [number, number], bp: Blueprint, radiu
 	return best;
 };
 
-/** Cheapest column of DIRT (1 to 5 blocks) on a stand cell within 3 columns of `cell` that brings it in aim. `spare` tells which cells may hold scaffold. */
-export const pillar = (V: Uint8Array, cell: Vec3, kind: 'break' | 'place', explored: Explored, spare: (cell: Vec3) => boolean) => {
+/** Cheapest column of DIRT (1 to 7 blocks) on a stand cell within 5 columns of `cell` that brings it in aim. `spare` tells which cells may hold scaffold. */
+export const pillar = (V: Uint8Array, cell: Vec3, kind: 'break' | 'place', explored: Explored, spare: (cell: Vec3) => boolean, skip: ReadonlySet<number> = new Set()) => {
 	const found: { at: Vec3; height: number; score: number }[] = [];
 	for (const [k, [cost]] of explored) {
 		const at = cellOf(k);
-		if (Math.hypot(wrap(at[0] - cell[0]), wrap(at[2] - cell[2])) > 3 || V[k] == WATER) continue;
-		for (let height = 1; height <= 5 && at[1] + height + 1 < HEIGHT; height++) {
+		if (Math.hypot(wrap(at[0] - cell[0]), wrap(at[2] - cell[2])) > 5 || V[k] == WATER) continue;
+		for (let height = 1; height <= 7 && at[1] + height + 1 < HEIGHT; height++) {
 			const inColumn = (cell[0] & MASK) == at[0] && (cell[2] & MASK) == at[2] && cell[1] >= at[1] && cell[1] <= at[1] + height + 1;
 			if (inColumn || solid(V, at[0], at[1] + height + 1, at[2]) || !spare([at[0], at[1] + height - 1, at[2]])) break;
 			found.push({ at, height, score: cost + 3 * height });
 		}
 	}
-	for (const { at, height } of found.sort((p, q) => p.score - q.score)) {
-		const column = Array.from({ length: height }, (_, i) => idx(at[0], at[1] + i, at[2]));
-		const old = column.map(i => V[i]!);
-		/** Synchronous, so no frame sees the scaffold: the GPU copy of the world only changes through `put`. */
-		try {
-			for (const i of column) V[i] = DIRT;
-			if (aim(V, [at[0] + .5, at[1] + height + EYE, at[2] + .5], cell, kind)) return { at, height };
-		} finally {
-			column.forEach((i, n) => (V[i] = old[n]!));
+	found.sort((p, q) => p.score - q.score);
+	/** The player stops within 0.07 of the cell center along its walking axis: columns whose aim holds there too go first, a column that only works dead center is the fallback. */
+	for (const offsets of [[[0, 0], [-.07, 0], [.07, 0], [0, -.07], [0, .07]], [[0, 0]]]) {
+		for (const { at, height } of found) {
+			const key = idx(...at) * 8 + height;
+			if (skip.has(key)) continue;
+			const column = Array.from({ length: height }, (_, i) => idx(at[0], at[1] + i, at[2]));
+			const old = column.map(i => V[i]!);
+			/** Synchronous, so no frame sees the scaffold: the GPU copy of the world only changes through `put`. */
+			try {
+				for (const i of column) V[i] = DIRT;
+				if (offsets.every(([dx, dz]) => aim(V, [at[0] + .5 + dx!, at[1] + height + EYE, at[2] + .5 + dz!], cell, kind))) return { at, height, key };
+			} finally {
+				column.forEach((i, n) => (V[i] = old[n]!));
+			}
 		}
 	}
 };
