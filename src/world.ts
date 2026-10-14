@@ -1,9 +1,12 @@
 /** Numeric exports are substituted by name into `shader.wgsl` at build time. */
-export const SIZE = 512;
+export const SIZE = 1024;
 export const MASK = SIZE - 1;
-export const HEIGHT = 64;
+export const HEIGHT = 128;
 export const TOP = HEIGHT - 1;
-export const SEA = 24;
+/** Voxel index step of one y level, and the world size in bytes (2^27, exactly the default `maxStorageBufferBindingSize`). */
+export const LAYER = SIZE * SIZE;
+export const BYTES = LAYER * HEIGHT;
+export const SEA = 44;
 /** Highest column that gets a beach and no trees. */
 export const SHORE = SEA + 1;
 export const AIR = 0;
@@ -27,7 +30,7 @@ export const IRON = 15;
 export const DIAMOND = 16;
 
 /** Voxel index, one byte per cell: x and z wrap by bitmask (the SIZE shift floors negatives), y past HEIGHT is out of range. */
-export const idx = (x: number, y: number, z: number) => (MASK & (x + SIZE)) | ((MASK & (z + SIZE)) << 9) | (y << 18);
+export const idx = (x: number, y: number, z: number) => (MASK & (x + SIZE)) | ((MASK & (z + SIZE)) << 10) | (y << 20);
 
 export type Vec3 = [number, number, number];
 

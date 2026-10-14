@@ -1,10 +1,10 @@
 import shader from './shader.wgsl' with { type: 'text' };
-import { collides, lift, move, target, WATER, type Vec3 } from './world.ts';
+import { BYTES, collides, LAYER, lift, move, target, WATER, type Vec3 } from './world.ts';
 
-/** Feet position, spawned above the grass east of the lake and dropped onto the terrain. */
-const P: Vec3 = [280.5, 64, 280.5];
+/** Feet position, spawned high above the plateau on the west shore of the lake, under the snow-capped mountain, and dropped onto it. */
+const P: Vec3 = [434.5, 100, 511.5];
 const v: Vec3 = [0, 0, 0];
-const A: [number, number] = [-2.4, -.25];
+const A: [number, number] = [-1.7, -.02];
 /** Milliseconds added to the page clock, set by `dbg.time`. */
 let clock = 0;
 let keys: Record<string, boolean> = {};
@@ -20,9 +20,9 @@ const ctx = c.getContext('webgpu')!;
 ctx.configure({ device, format: 'bgra8unorm' });
 const module = device.createShaderModule({ code: shader });
 
-const world = device.createBuffer({ size: 1 << 24, usage: 140 });
+const world = device.createBuffer({ size: BYTES, usage: 140 });
 const uniforms = device.createBuffer({ size: 48, usage: 72 });
-const readback = device.createBuffer({ size: 1 << 24, usage: 9 });
+const readback = device.createBuffer({ size: BYTES, usage: 9 });
 const entries = [
 	{ binding: 0, resource: world },
 	{ binding: 1, resource: uniforms },
@@ -35,17 +35,21 @@ const renderBinds = bind(render);
 /** The targeted voxel index and the free cell in front of it, refreshed every frame. */
 let hit: [number, number] | undefined;
 
-/** Writes the `Uniforms` floats: eye, time, view direction, targeted voxel index (-1 for none), canvas size. */
-const upload = (seconds: number, eye: Vec3, dir: Vec3) => queue.writeBuffer(uniforms, 0, new Float32Array([...eye, seconds, ...dir, hit?.[0] ?? -1, c.width, c.height]));
+/** Writes the `Uniforms`: eye, time, view direction, targeted voxel index as a u32 (exact past 2^24, 0xFFFFFFFF for none), canvas size. */
+const upload = (seconds: number, eye: Vec3, dir: Vec3) => {
+	const data = new Float32Array([...eye, seconds, ...dir, 0, c.width, c.height]);
+	new Uint32Array(data.buffer)[7] = hit?.[0] ?? -1;
+	queue.writeBuffer(uniforms, 0, data);
+};
 
 const t0 = DEV ? performance.now() : 0;
 const gen = device.createCommandEncoder();
 const genPass = gen.beginComputePass();
 genPass.setPipeline(compute);
 genPass.setBindGroup(0, bind(compute));
-genPass.dispatchWorkgroups(1024);
+genPass.dispatchWorkgroups(4096);
 genPass.end();
-gen.copyBufferToBuffer(world, readback, 1 << 24);
+gen.copyBufferToBuffer(world, readback, BYTES);
 queue.submit([gen.finish()]);
 await readback.mapAsync(1);
 const V = new Uint8Array(readback.getMappedRange());
@@ -70,7 +74,7 @@ const put = (i: number, b: number) => {
 const act = (button: number) => {
 	if (!hit) return;
 	const [i, free] = hit;
-	if (button < 2) return put(i, 0), V[i + 262144]! < WATER && put(i + 262144, 0);
+	if (button < 2) return put(i, 0), V[i + LAYER]! < WATER && put(i + LAYER, 0);
 	const cell = V[i]! < WATER ? i : free;
 	const old = V[cell]!;
 	if (old <= WATER) {

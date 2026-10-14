@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { collides, DIRT, FLOWER, GLASS, GRASS, idx, LEAVES, LOG, lift, move, STONE, target, type Vec3, WATER } from '../world.ts';
+import { BYTES, collides, DIRT, FLOWER, GLASS, GRASS, idx, LAYER, LEAVES, LOG, lift, move, SIZE, STONE, target, type Vec3, WATER } from '../world.ts';
 import { Bot } from './bot.ts';
 /** Mirrors the frame loop, `act` and the digit rule of `main.ts` (the keys, `lift`, `move`, `target`, the `collides` revert), driven one fixed step at a time. */
 class FakeGame implements Dbg {
@@ -30,7 +30,7 @@ class FakeGame implements Dbg {
 		if (!this.current) return;
 		const { P, V } = this;
 		const [i, free] = this.current;
-		if (button < 2) return (V[i] = 0), V[i + 262144]! < WATER && (V[i + 262144] = 0);
+		if (button < 2) return (V[i] = 0), V[i + LAYER]! < WATER && (V[i + LAYER] = 0);
 		const cell = V[i]! < WATER ? i : free;
 		const old = V[cell]!;
 		if (old <= WATER) {
@@ -67,7 +67,7 @@ class FakeGame implements Dbg {
 }
 
 /** Dirt with a grass top, the top cell is `floor - 1` and the feet stand at `floor`. */
-const flat = (floor: number) => new Uint8Array(1 << 24).fill(DIRT, 0, idx(0, floor - 1, 0)).fill(GRASS, idx(0, floor - 1, 0), idx(0, floor, 0));
+const flat = (floor: number) => new Uint8Array(BYTES).fill(DIRT, 0, idx(0, floor - 1, 0)).fill(GRASS, idx(0, floor - 1, 0), idx(0, floor, 0));
 
 const setup = (V: Uint8Array, P: Vec3, dt = .016, shift = 3) => {
 	const game = new FakeGame(V, P, dt, shift);
@@ -107,7 +107,7 @@ describe.each(DTS)('bot at dt %f', dt => {
 	});
 
 	test('goto crosses the x seam', async () => {
-		const { bot, game } = setup(flat(20), [508.5, 20, 100.5], dt);
+		const { bot, game } = setup(flat(20), [SIZE - 3.5, 20, 100.5], dt);
 		expect(await bot.goto(4.5, 100.5)).toBe(true);
 		expect(Math.hypot(game.P[0] - 4.5, game.P[2] - 100.5)).toBeLessThan(.25);
 	});

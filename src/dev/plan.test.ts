@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { AIR, BRICKS, DIRT, FLOWER, GLASS, GRASS, idx, LOG, PLANKS, STONE, target, type Vec3, WATER } from '../world.ts';
+import { AIR, BRICKS, BYTES, DIRT, FLOWER, GLASS, GRASS, idx, LOG, PLANKS, SIZE, STONE, target, type Vec3, WATER } from '../world.ts';
 import { ANY, BLUEPRINTS, type Blueprint } from './blueprints.ts';
 import { aim, explore, jobs, route, site, stands, supported } from './plan.ts';
 
 const house = BLUEPRINTS.house!;
 
-/** A 16 MiB world with grass on top of dirt: the top cell is `floor - 1`, the feet stand at `floor`. */
+/** A full-size world with grass on top of dirt: the top cell is `floor - 1`, the feet stand at `floor`. */
 const flat = (floor: number) => {
-	const V = new Uint8Array(1 << 24).fill(DIRT, 0, idx(0, floor - 1, 0));
+	const V = new Uint8Array(BYTES).fill(DIRT, 0, idx(0, floor - 1, 0));
 	return V.fill(GRASS, idx(0, floor - 1, 0), idx(0, floor, 0));
 };
 const eye: Vec3 = [100.5, 11.62, 100.5];
@@ -147,7 +147,7 @@ describe('explore and route', () => {
 	});
 
 	test('the path wraps across the x seam', () => {
-		const path = reach(flat(10), [510.5, 10, 100.5], [2, 10, 100])!;
+		const path = reach(flat(10), [SIZE - 1.5, 10, 100.5], [2, 10, 100])!;
 		expect(path).toHaveLength(4);
 		expect(path.at(-1)).toEqual([2.5, 10, 100.5]);
 	});
@@ -162,7 +162,7 @@ describe('explore and route', () => {
 
 describe('site', () => {
 	test('a flat patch beats bumpy ground, and the origin takes the patch height', () => {
-		const V = new Uint8Array(1 << 24);
+		const V = new Uint8Array(BYTES);
 		for (let x = 60; x < 200; x++) {
 			for (let z = 60; z < 200; z++) {
 				const h = x >= 130 && x < 150 && z >= 130 && z < 150 ? 22 : 20 + ((x * 7 + z * 13) % 5);

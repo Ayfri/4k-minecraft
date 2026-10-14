@@ -1,4 +1,4 @@
-struct Uniforms { p: vec3f, t: f32, a: vec3f, h: f32, r: vec2f }
+struct Uniforms { p: vec3f, t: f32, a: vec3f, h: u32, r: vec2f }
 @group(0) @binding(0) var<storage, read_write> W: array<u32>;
 @group(0) @binding(1) var<uniform> U: Uniforms;
 
@@ -18,7 +18,7 @@ fn H(c: vec3u) -> f32 {
 }
 
 /** Voxel index of a cell, one byte per cell. */
-fn I(c: vec3i) -> u32 { return dot(vec3u(c) & vec3u(MASK, TOP, MASK), vec3u(1, 1 << 18, 512)); }
+fn I(c: vec3i) -> u32 { return dot(vec3u(c) & vec3u(MASK, TOP, MASK), vec3u(1, LAYER, SIZE)); }
 
 /** The block at a cell: stone below the world, air above it, x and z wrap. */
 fn B(c: vec3i) -> u32 {
@@ -123,7 +123,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
       if r > 1 { u.x = 15 - u.x; }
     }
     let e = abs(fract(P) - .5) * (1 - N);
-    let ol = f32(I(C)) == U.h && any(e > vec3f(.46));
+    let ol = I(C) == U.h && any(e > vec3f(.46));
     let lv = L * sign(L.y);
     let li = vec3f(.1, .12, .22) + vec3f(.65, .5, .3) * saturate(L.y * 5);
     let al = X(K, u, n);
@@ -145,7 +145,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   return vec4f(select(o, 1 - o, min(z.x, z.y) < 1 && max(z.x, z.y) < 6), 1);
 }
 
-/** Value noise with lattice cells of `c` blocks, wrapped so that it tiles the world when `c` divides 512 (and 64 on y). */
+/** Value noise with lattice cells of `c` blocks, wrapped so that it tiles the world when `c` divides 1024 (and 128 on y). */
 fn Q(p: vec3f, c: f32) -> f32 {
   var f = fract(p / c);
   let g = floor(p / c);
@@ -162,27 +162,27 @@ fn Q(p: vec3f, c: f32) -> f32 {
 /** Height of the terrain column at x, z. */
 fn T(x: u32, z: u32) -> f32 {
   let p = vec3f(vec3u(x, 0, z));
-  let m = pow(Q(p, 256), 4);
+  let m = pow(Q(p + vec3f(844, 0, 0), 512), 3);
   var e = 0.;
-  for (var c = 128.; c > 8; c *= .5) { e += Q(p, c) * c / 256; }
-  return floor(clamp(SEA + (e - .4) * 90 + m * 35, 2, 60));
+  for (var c = 256.; c > 8; c *= .5) { e += Q(p, c) * c / 512; }
+  return floor(clamp(SEA + (e - .45) * (50 + m * 300) + m * (130 + abs(Q(p, 64) - .5) * 300), 2, 124));
 }
 
 @compute @workgroup_size(64) fn g(@builtin(global_invocation_id) u: vec3u) {
   _ = U.h;
-  let z = u.x >> 7;
+  let z = u.x >> 8;
   for (var k = 0u; k < 4; k++) {
-    let x = (u.x & 127) * 4 + k;
+    let x = (u.x & 255) * 4 + k;
     let h = T(x, z);
-    let desert = Q(vec3f(vec3u(x + 64, 0, z + 64)), 128) > .7;
+    let desert = h < 70 && Q(vec3f(vec3u(x + 128, 0, z + 128)), 256) > .7;
     let t = vec2u(x, z) / 8;
     let r = H(vec3u(t.x, 99, t.y));
     let tx = t.x * 8 + 2 + u32(r * 40) % 4;
     let tz = t.y * 8 + 2 + u32(r * 400) % 4;
     let th = T(tx, tz);
-    let tree = r < .3 && th > SHORE && th < 46 && !desert;
+    let tree = r < .3 && th > SHORE && th < 75 && !desert;
     var below = 0u;
-    for (var y = 0u; y < 64; y++) {
+    for (var y = 0u; y < HEIGHT; y++) {
       let c = vec3u(x, y, z);
       let p = vec3f(c);
       let q = H(c);
@@ -195,18 +195,19 @@ fn T(x: u32, z: u32) -> f32 {
         else if p.y <= SEA { b = WATER; }
       } else {
         let beach = h <= SHORE || desert;
-        b = GRASS;
-        if h > 52 + q * 6 { b = SNOW; }
-        if p.y < h { b = DIRT; }
+        let w = u32(h > 80 + q * 8);
+        b = GRASS + w * 2;
+        if h > 95 + q * 6 { b = SNOW; }
+        if p.y < h { b = DIRT + w; }
         if beach { b = SAND; }
         if p.y < h - 3 || y == 0 {
           b = STONE;
-          if q < .015 { b = COAL; } else if q < .022 && p.y < 40 { b = IRON; } else if q < .025 && p.y < 12 { b = DIAMOND; }
+          if q < .015 { b = COAL; } else if q < .022 && p.y < 72 { b = IRON; } else if q < .025 && p.y < 24 { b = DIAMOND; }
         }
-        if y > 0 && !(beach && p.y > h - 3) && Q(p, 16) > .78 { b = AIR; }
+        if y > 0 && !(beach && p.y > h - 3) && Q(p, 32) > .78 { b = AIR; }
       }
       below = b;
-      W[u.x | (y << 16)] |= b << (k * 8);
+      W[u.x | (y << 18)] |= b << (k * 8);
     }
   }
 }

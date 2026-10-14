@@ -6,7 +6,7 @@ import { build } from './build.ts';
 import { Page, problems } from './webview.ts';
 
 /** Start of the site search on the real terrain, pinned so a terrain change moves the house instead of breaking the test. */
-export const HOUSE_NEAR: [number, number] = [280, 280];
+export const HOUSE_NEAR: [number, number] = [434, 511];
 
 const root = `${import.meta.dir}/..`;
 

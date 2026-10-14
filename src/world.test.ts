@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { collides, FLOWER, GLASS, HEIGHT, idx, lift, move, SIZE, solid, STONE, target, type Vec3, WATER } from './world.ts';
+import { BYTES, collides, FLOWER, GLASS, HEIGHT, idx, LAYER, lift, move, SIZE, solid, STONE, target, type Vec3, WATER } from './world.ts';
 
-/** A 16 MiB world with stone for every cell below `floor`. */
-const flat = (floor: number) => new Uint8Array(1 << 24).fill(STONE, 0, idx(0, floor, 0));
+/** A full-size world with stone for every cell below `floor`. */
+const flat = (floor: number) => new Uint8Array(BYTES).fill(STONE, 0, idx(0, floor, 0));
 const DT = .03;
 
 /** Steps the physics like the frame loop (gravity capped at 30) until the feet land, returns the steps taken. */
@@ -18,8 +18,9 @@ describe('idx and solid', () => {
 	test('x and z wrap and y keeps its own bits', () => {
 		expect(idx(-1, 0, 0)).toBe(SIZE - 1);
 		expect(idx(SIZE, 0, 0)).toBe(0);
-		expect(idx(0, 0, -1)).toBe((SIZE - 1) << 9);
-		expect(idx(3, 2, 5)).toBe(3 | (5 << 9) | (2 << 18));
+		expect(idx(0, 0, -1)).toBe((SIZE - 1) * SIZE);
+		expect(idx(3, 2, 5)).toBe(3 + 5 * SIZE + 2 * LAYER);
+		expect(idx(SIZE - 1, HEIGHT - 1, SIZE - 1)).toBe(BYTES - 1);
 	});
 
 	test('stone below the world, air above it, water never blocks', () => {
@@ -79,7 +80,7 @@ describe('move', () => {
 		expect(p[0]).toBeLessThanOrEqual(.7);
 	});
 
-	test('a wall at x=0 blocks the approach from x=511', () => {
+	test('a wall at x=0 blocks the approach from the last column', () => {
 		const V = flat(10);
 		for (let y = 10; y < 13; y++) V[idx(0, y, 100)] = STONE;
 		const p: Vec3 = [SIZE - .5, 10, 100.5];
@@ -90,7 +91,7 @@ describe('move', () => {
 	});
 
 	test('falling at the speed cap never ends inside a one block floor', () => {
-		const V = new Uint8Array(1 << 24);
+		const V = new Uint8Array(BYTES);
 		V.fill(STONE, idx(0, 10, 0), idx(0, 11, 0));
 		for (let k = 0; k < 20; k++) {
 			const p: Vec3 = [100.5, 14 + k * .053, 100.5];

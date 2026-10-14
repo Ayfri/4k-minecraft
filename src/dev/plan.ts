@@ -1,4 +1,4 @@
-import { AIR, DIRT, GRASS, HEIGHT, idx, LEAVES, LOG, MASK, SIZE, solid, target, TOP, WATER, type Vec3 } from '../world.ts';
+import { AIR, DIRT, GRASS, HEIGHT, idx, LAYER, LEAVES, LOG, MASK, SIZE, solid, target, TOP, WATER, type Vec3 } from '../world.ts';
 import { ANY, type Blueprint } from './blueprints.ts';
 
 /** Eye height above the feet, as in the frame loop of `main.ts`. */
@@ -22,7 +22,7 @@ export interface Aim {
 /** Shortest signed delta on the wrapping x and z axes. */
 export const wrap = (d: number) => ((d % SIZE) + SIZE * 1.5) % SIZE - SIZE / 2;
 
-export const cellOf = (i: number): Vec3 => [i & MASK, i >> 18, (i >> 9) & MASK];
+export const cellOf = (i: number): Vec3 => [i & MASK, i >> 20, (i >> 10) & MASK];
 
 /** Whether the feet fit in cell (x, y, z): two free cells, on a solid cell or swimming. */
 export const standable = (V: Uint8Array, x: number, y: number, z: number) =>
@@ -158,7 +158,7 @@ const ground = (b: number) => b > WATER && b != LOG && b != LEAVES;
 /** Origin of the flattest, tree-free spot around `near` (the house center): the median ground height of the footprint, the cheapest levelling wins, nearest first. */
 export const site = (V: Uint8Array, near: [number, number], bp: Blueprint, radius = 48): Vec3 | undefined => {
 	const [w, h, d] = bp.size;
-	const tops = new Int8Array(1 << 18).fill(-2);
+	const tops = new Int8Array(LAYER).fill(-2);
 	const top = (x: number, z: number) => {
 		const k = idx(x, 0, z);
 		if (tops[k] == -2) {
