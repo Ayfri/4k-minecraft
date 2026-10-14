@@ -7,28 +7,29 @@ export const SEA = 24;
 /** Highest column that gets a beach and no trees. */
 export const SHORE = SEA + 1;
 export const AIR = 0;
-/** Flowers have no collision and `target` stops at them to break or replace them, the shader's march only stops on their opaque texels. */
+/** Plants (flowers, tufts) have no collision, `target` stops at them to break or replace them, the shader's march only stops on opaque texels. */
 export const FLOWER = 1;
-export const WATER = 2;
-export const GRASS = 3;
-export const DIRT = 4;
-export const STONE = 5;
-export const SAND = 6;
-export const LOG = 7;
-export const LEAVES = 8;
-export const PLANKS = 9;
-export const BRICKS = 10;
-export const SNOW = 11;
-export const COAL = 12;
-export const IRON = 13;
-export const DIAMOND = 14;
+export const TUFT = 2;
+export const WATER = 3;
+export const GRASS = 4;
+export const DIRT = 5;
+export const STONE = 6;
+export const SAND = 7;
+export const LOG = 8;
+export const LEAVES = 9;
+export const PLANKS = 10;
+export const BRICKS = 11;
+export const SNOW = 12;
+export const COAL = 13;
+export const IRON = 14;
+export const DIAMOND = 15;
 
 /** Voxel index, one byte per cell: x and z wrap by bitmask (the SIZE shift floors negatives), y past HEIGHT is out of range. */
 export const idx = (x: number, y: number, z: number) => (MASK & (x + SIZE)) | ((MASK & (z + SIZE)) << 9) | (y << 18);
 
 export type Vec3 = [number, number, number];
 
-/** Stone below the world, air above it (the lookup lands past the buffer, `undefined > WATER` is false), water and flowers pass. */
+/** Stone below the world, air above it (the lookup lands past the buffer, `undefined > WATER` is false), water and plants pass. */
 export const solid = (V: Uint8Array, x: number, y: number, z: number) => y < 0 || V[idx(x, y, z)]! > WATER;
 
 /** Whether the 0.6 x 1.8 box standing on the feet position `p` overlaps a solid cell, sampled 0.9 apart on y so no cell is skipped. */
@@ -62,7 +63,7 @@ export const lift = (V: Uint8Array, p: Vec3, vy: number, dt: number, jump: numbe
 	return jump && (ground || swim) ? 8.5 : swim ? Math.max(vy - 8.4 * dt, -2) : Math.max(vy - 28 * dt, -30);
 };
 
-/** Marches 6 blocks along `dir` from `eye`, returns the first solid or flower cell and the cell before it (-1 when the eye is inside). */
+/** Marches 6 blocks along `dir` from `eye`, returns the first solid or plant cell and the cell before it (-1 when the eye is inside). */
 export const target = (V: Uint8Array, eye: Vec3, dir: Vec3): [hit: number, place: number] | undefined => {
 	let place = -1;
 	for (let t = 0; t < 6; t += .02) {

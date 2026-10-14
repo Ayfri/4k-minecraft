@@ -1,4 +1,4 @@
-struct Uniforms { p: vec3f, t: f32, a: vec3f, s: f32, r: vec2f, h: f32 }
+struct Uniforms { p: vec3f, t: f32, a: vec3f, h: f32, r: vec2f }
 @group(0) @binding(0) var<storage, read_write> W: array<u32>;
 @group(0) @binding(1) var<uniform> U: Uniforms;
 
@@ -6,12 +6,12 @@ var<private> C: vec3i;
 var<private> N: vec3f;
 var<private> K: u32;
 
-const COLORS = array(0u, 0xd33, 0xfd3, 0x5a3, 0x864, 0x888, 0xed9, 0x753, 0x373, 0xb85, 0xa43, 0xfff, 0x333, 0xc98, 0x5ee);
+const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3563, 0x5864, 0x2777, 0x1dca, 0x2653, 0x8462, 0x2a85, 0x3954, 0xfff, 0x6333, 0x4a87, 0x46bb);
 
 /** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
 fn H(c: vec3u) -> f32 {
   let p = c & vec3u(MASK, TOP, MASK);
-  var h = ((p.x * 0x45d9f3b + p.y) * 0x45d9f3b + p.z) * 0x45d9f3b + u32(U.s);
+  var h = ((p.x * 0x45d9f3b + p.y) * 0x45d9f3b + p.z) * 0x45d9f3b + 1;
   h ^= h >> 16;
   h *= 0x45d9f3b;
   return f32(h ^ (h >> 16)) * 2.3e-10;
@@ -32,12 +32,13 @@ fn A(P: vec3f) -> vec2u {
   return vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
 }
 
-/** Colour index of the flower texel `u` of the cell C: a stem and a red or yellow head, 0 where transparent (the top face always is). */
+/** Colour index of the plant texel `u` of the cell C: blades for a tuft, a stem and a red or yellow head for a flower, 0 where transparent (the top face always is). */
 fn F(u: vec2u) -> u32 {
   let a = abs(i32(u.x) * 2 - 15);
   if N.y == 0 {
-    if a < 2 && u.y > 5 { return GRASS; }
-    if a < 6 && u.y > 0 && u.y < 6 { return 1 + u32(H(vec3u(C.zyx)) * 2); }
+    if K == TUFT { return select(0u, K, u.y > 1 + u32(H(vec3u(u.x, 3, 3)) * 10)); }
+    if a < 2 && u.y > 9 { return GRASS; }
+    if a + abs(i32(u.y) - 7) * 2 < 7 { return 1 + u32(H(vec3u(C.zyx)) * 2) * 2; }
   }
   return 0;
 }
@@ -52,7 +53,7 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   for (var i = 0; i < n; i++) {
     K = B(C);
     let t = dot(N, e - r);
-    if K > k && (K != FLOWER || F(A(o + d * t)) > 0) { return t; }
+    if K > k && (K > TUFT || F(A(o + d * t)) > 0) { return t; }
     if C.y > TOP && d.y > 0 { break; }
     N = step(e, min(e.yzx, e.zxy));
     e += N * r;
@@ -69,29 +70,27 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
 /** Colour of texel `t` (16x16 per face) of block `b` seen from the side `n`, the same tile for every block of a type. */
 fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   var k = b;
-  let q = H(vec3u(t, b));
-  var m = 1.1 - .4 * q;
-  let a = abs(vec2i(t) * 2 - 15);
+  var q = H(vec3u(t, b));
+  var m = 1.;
   if b == GRASS {
     if n.y < 0 || (n.y == 0 && t.y > u32(H(vec3u(t.x, 7, b)) * 4)) { k = DIRT; }
   } else if b == LOG {
-    if n.y == 0 { m *= .7 + .3 * H(vec3u(t.x, 7, b)); } else {
+    if n.y == 0 { m = .7 + .6 * H(vec3u(t.x, t.y / 5, b)); } else {
+      let a = abs(vec2i(t) * 2 - 15);
       let r = max(a.x, a.y);
       k = select(PLANKS, b, r > 13);
-      m *= 1 - .25 * f32(r / 4 % 2);
+      m = 1 - .25 * f32(r / 4 % 2);
     }
-  } else if b == LEAVES {
-    if q < .3 { m *= .5; }
   } else if b == PLANKS {
-    if t.y % 4 == 0 || (t.x + t.y / 4 % 2 * 8) % 16 == 0 { m *= .7; }
+    if t.y % 4 > 2 { m = .65; }
   } else if b == BRICKS {
-    if t.y % 4 == 0 || (t.x + t.y / 4 % 2 * 4) % 8 == 0 { return vec3f(.7) * m; }
-  } else if b == STONE {
-    m = .8 + .15 * q + .25 * H(vec3u(t / 2, 9));
-  } else if b == FLOWER {
+    if t.y % 4 > 2 || (t.x + t.y / 4 % 2 * 4) % 8 == 3 { k = STONE; }
+  } else if b < WATER {
     k = F(t);
   } else if b > SNOW && H(vec3u(t / 2, b)) < .8 { k = STONE; }
-  return vec3f((vec3u(COLORS[k]) >> vec3u(8, 4, 0)) & vec3u(15)) / 15 * m;
+  let e = COLORS[k];
+  let c = vec3f(vec3u(e >> 8, e >> 4, e) & vec3u(15)) / 15 * (m + (q - .5) * f32(e >> 12) / 8);
+  return c * c;
 }
 
 @fragment fn f(@builtin(position) q: vec4f) -> @location(0) vec4f {
@@ -168,6 +167,7 @@ fn T(x: u32, z: u32) -> f32 {
 }
 
 @compute @workgroup_size(64) fn g(@builtin(global_invocation_id) u: vec3u) {
+  _ = U.h;
   let z = u.x >> 7;
   for (var k = 0u; k < 4; k++) {
     let x = (u.x & 127) * 4 + k;
@@ -189,7 +189,7 @@ fn T(x: u32, z: u32) -> f32 {
       if p.y > h {
         if tree && d.x == 0 && d.z == 0 && d.y > -4 && d.y < 1 { b = LOG; }
         else if tree && abs(d.y + .5) < 2 && dot(d, d) < 5.5 - q { b = LEAVES; }
-        else if below == GRASS && q < .05 { b = FLOWER; }
+        else if below == GRASS && q < .3 { b = 1 + u32(q > .05); }
         else if p.y <= SEA { b = WATER; }
       } else {
         let beach = h <= SHORE || desert;

@@ -1,5 +1,5 @@
 import shader from './shader.wgsl' with { type: 'text' };
-import { collides, FLOWER, lift, move, target, WATER, type Vec3 } from './world.ts';
+import { collides, lift, move, target, WATER, type Vec3 } from './world.ts';
 
 /** Feet position, spawned above the grass east of the lake and dropped onto the terrain. */
 const P: Vec3 = [280.5, 64, 280.5];
@@ -35,11 +35,10 @@ const renderBinds = bind(render);
 /** The targeted voxel index and the free cell in front of it, refreshed every frame. */
 let hit: [number, number] | undefined;
 
-/** Writes the `Uniforms` floats: eye, time, view direction, seed, canvas size, targeted voxel index (-1 for none). */
-const upload = (seconds: number, eye: Vec3, dir: Vec3) => queue.writeBuffer(uniforms, 0, new Float32Array([...eye, seconds, ...dir, 1, c.width, c.height, hit?.[0] ?? -1]));
+/** Writes the `Uniforms` floats: eye, time, view direction, targeted voxel index (-1 for none), canvas size. */
+const upload = (seconds: number, eye: Vec3, dir: Vec3) => queue.writeBuffer(uniforms, 0, new Float32Array([...eye, seconds, ...dir, hit?.[0] ?? -1, c.width, c.height]));
 
 const t0 = DEV ? performance.now() : 0;
-upload(0, P, P);
 const gen = device.createCommandEncoder();
 const genPass = gen.beginComputePass();
 genPass.setPipeline(compute);
@@ -67,12 +66,12 @@ const put = (i: number, b: number) => {
 	queue.writeBuffer(world, i & ~3, V, i & ~3, 4);
 };
 
-/** Left click breaks the target and the flower above it, right click places the selected block in a free cell or over a flower. */
+/** Left click breaks the target and the plant above it, right click places the selected block in a free cell or over a plant. */
 const act = (button: number) => {
 	if (!hit) return;
 	const [i, free] = hit;
-	if (button < 2) return put(i, 0), V[i + 262144] == FLOWER && put(i + 262144, 0);
-	const cell = V[i] == FLOWER ? i : free;
+	if (button < 2) return put(i, 0), V[i + 262144]! < WATER && put(i + 262144, 0);
+	const cell = V[i]! < WATER ? i : free;
 	const old = V[cell]!;
 	if (old <= WATER) {
 		put(cell, selected);
@@ -80,9 +79,9 @@ const act = (button: number) => {
 	}
 };
 
-/** Block placed by the right button, picked with the digit keys 1 to 9 (ids 3 to 11, `Digit1` is grass). */
-let selected = 3;
-onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = (+e.code[5]! || selected - 2) + 2));
+/** Block placed by the right button, picked with the digit keys 1 to 9 (ids 4 to 12, `Digit1` is grass). */
+let selected = 4;
+onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = (+e.code[5]! || selected - 3) + 3));
 onmousedown = e => (document.pointerLockElement ? act(e.button) : c.requestPointerLock({ unadjustedMovement: true }).catch(() => c.requestPointerLock()));
 oncontextmenu = () => !1;
 onblur = () => (keys = {});
