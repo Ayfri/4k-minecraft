@@ -146,7 +146,7 @@ fn f(q: vec2f) -> vec4f {
       let o = C + vec3i(n) + vec3i(select(n.zxy, n.yzx, i > 1)) * (i % 2 * 2 - 1);
       if B(o) > WATER { ao += saturate(1.5 - distance(P, vec3f(o) + .5)); }
     }
-    col = al * ((vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3) + vec3f(.65, .5, .3) * saturate(L.y * 5) * max(dot(n, L), 0) * step(1e9, M(P + n * .01, L, WATER, 64)));
+    col = al * ((vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3) + vec3f(.65, .5, .3) * saturate(L.y * 5) * max(dot(n, L), 0) * step(1e9, M(P + n * .01, L, WATER, 128)));
     if ol { col = abs(1 - col); }
   }
   col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .2));
