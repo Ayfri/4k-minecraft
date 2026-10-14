@@ -65,11 +65,3 @@ export async function pack(js: string): Promise<Packed> {
 	}
 	throw new Error('every compressed candidate breaks the HTML comment, change the input by a byte');
 }
-
-if (import.meta.main) {
-	const [input, output] = Bun.argv.slice(2);
-	if (!input || !output) throw new Error('usage: bun scripts/pack.ts <in.js> <out.html>');
-	const packed = await pack(await Bun.file(input).text());
-	await Bun.write(output, packed.html);
-	console.log(`${packed.codec}: deflate ${packed.deflated} B, page ${packed.html.length} B, ${4096 - packed.html.length} B left`);
-}

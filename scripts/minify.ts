@@ -92,5 +92,5 @@ export async function bestMinify(wrapped: string) {
 	const ranked = await variants(wrapped);
 	const finalists = await Promise.all(ranked.slice(0, 2).map(async v => ({ ...v, packed: await packFit(v.js) })));
 	const [best] = finalists.sort((a, b) => a.packed.html.length - b.packed.html.length);
-	return { best: best!, finalists, ranked };
+	return { best: best!, ranked };
 }
