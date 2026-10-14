@@ -1,6 +1,6 @@
 # 4k-minecraft
 
-A remake of Notch's 2009 Minecraft 4k as one self-extracting HTML file of at most 4096 bytes, rendered with WebGPU. The page, `dist/index.html`, is 4091 bytes.
+A remake of Notch's 2009 Minecraft 4k as one self-extracting HTML file of at most 4096 bytes, rendered with WebGPU. The page, `dist/index.html`, is 4048 bytes.
 
 ## Screenshots
 
@@ -21,6 +21,9 @@ A remake of Notch's 2009 Minecraft 4k as one self-extracting HTML file of at mos
 <td width="50%"><img src="screenshots/flowers.webp" alt="Red and yellow flowers and grass tufts in a meadow"><br><sub>A meadow of flowers and short grass tufts seen from the ground.</sub></td>
 <td width="50%"><img src="screenshots/underwater.webp" alt="The sandy bottom of a lake seen from under the surface"><br><sub>Underwater: the sandy bottom of a lake behind the blue tint.</sub></td>
 </tr>
+<tr>
+<td colspan="2"><img src="screenshots/house.webp" alt="A house built by the bot"><br><sub>A house the bot builds through the player's own controls: stone foundation, plank walls, log corners and a brick gable roof.</sub></td>
+</tr>
 </table>
 
 `bun run screenshots` regenerates them.
@@ -33,7 +36,7 @@ Notch's entry for the Java 4K contest, released in December 2009, was 2581 bytes
 
 - World: 512x512x64 cells that wrap around on x and z. Value-noise terrain, lakes at sea level with beaches, deserts, snow on the peaks, caves, trees, flowers and short grass tufts on the grass and coal, iron and diamond ores.
 - Physics: a 0.6 x 1.8 box with gravity, jumping, wall and ceiling collisions and swimming. One block can be climbed by jumping, and Space in water jumps out of the lake onto the shore.
-- Rendering: voxel ray marching per pixel at half the window resolution, procedural 16x16 textures with colours and patterns matched to the vanilla block textures, ambient occlusion, sun shadows, a day and night cycle with stars, distance fog, underwater tint, a block outline and a crosshair.
+- Rendering: voxel ray marching per pixel at half the window resolution, procedural 16x16 textures with colours and patterns matched to the vanilla block textures, ambient occlusion, sun shadows, see-through leaves that let light and shadows through like the vanilla fancy leaves, a day and night cycle with stars, distance fog, underwater tint, a block outline and a crosshair.
 - Blocks: break the block you aim at (reach of 6 blocks, a plant above it goes with it) and place the selected block in front of it. A flower or a tuft can be broken directly or replaced by a block.
 
 ## Controls
@@ -68,18 +71,23 @@ Chrome on Windows with WebGPU, opening the file straight from `file://`, is the 
 
 ```powershell
 bun install
-bun run build         # dist/index.html, prints the size and fails above 4096 B (--rank lists the minifier variants, --dev writes dist/dev.html)
-bun run dev           # Bun.serve dev server with HMR on http://localhost:3000, unminified, DEV hooks on
+bun run build         # dist/index.html, prints the size and fails above 4096 B (--rank lists the minifier variants, --verbose adds the bundle inputs and every variant, --out <dir> writes elsewhere, --dev writes dist/dev.html)
+bun run dev           # Bun.serve dev server with HMR on http://localhost:3000, unminified, DEV hooks and the bot on
 bun run check         # tsc
-bun run test          # unit tests and the e2e render of dist/index.html
+bun run test          # unit tests, the bot simulation and the e2e render of dist/index.html
 bun run test:e2e      # build, then the e2e render alone
 bun run test:fuzz     # packer fuzz, about 15 s
+bun run test:bot      # build --dev, then the bot builds a house in headless Chrome on the real terrain, about 3 min
+bun run bot house     # the same build with a summary line (--at x,z --shot dir --frames --size WxH --headed --no-build)
 bun run verify        # build, open dist/index.html in headless Chrome from file://, fail on console errors, screenshot
+bun run gate          # tsc and tests together, then build and verify, one table (--fuzz adds the packer fuzz, --shot <path>, --out <dir>)
+bun run bench -- --n 10 "bun run build"   # times a command after one warm-up: min, median, max, mean and standard deviation
+bun run bench -- --frames 10              # samples dbg.bench() (ms per frame) in the dev page
 bun run screenshots   # build --dev, then write screenshots/<name>.webp for the README gallery (view names as arguments render only those)
 bun scripts/webview.ts dist/dev.html --eval "dbg.bench()" --keys "w:500,space:100" --shot out.png
 ```
 
-`dist/dev.html` comes from `bun run build --dev` or `bun run verify --dev`. `verify` forwards the CLI of `scripts/webview.ts`: `--dev` (open `dist/dev.html`), `--eval` (run an expression in the page and print the result), `--keys` (hold keys in order, `"w:500,space:100"`) and `--shot` (screenshot path).
+`dist/dev.html` comes from `bun run build --dev` or `bun run verify --dev`. `verify` builds first (`--dev`, `--out <dir>`, `--verbose`), then forwards the CLI of `scripts/webview.ts`: `--eval` (run an expression in the page and print the result), `--eval-file` (run a file of statements, `await` and `return` allowed), `--keys` (hold keys in order, `"w:500,space:100"`), `--shot` (screenshot path), `--size` (`1280x720` by default), `--wait` (milliseconds before the eval) and `--headed`. Every eval settles before the screenshot: the page waits for two rendered frames and 100 ms, so the shot shows the effect of the code. `bun run gate` is the one command to run before a commit.
 
 The DEV build exposes `dbg` on `globalThis`:
 
@@ -91,5 +99,31 @@ The DEV build exposes `dbg` on `globalThis`:
 | `dbg.v` | Velocity `[x, y, z]` |
 | `dbg.act(button)` | Break (0) or place (2) at the target |
 | `dbg.bench(n)` | Mean milliseconds of `n` draws, 100 by default |
+| `dbg.hit` | The targeted voxel index and the free cell in front of it `[hit, place]`, refreshed every frame, read-only |
 | `dbg.time(seconds)` | Sets the clock of the sun, so day and night can be picked |
 | `dbg.select(block)` | Sets the block placed by the right click |
+
+### Bot
+
+`dist/dev.html` and `bun run dev` also load `src/dev/index.ts`, which publishes `bot` on `globalThis`. The bot exists only in the dev page and adds 0 bytes to `index.html`: `main.ts` never imports `src/dev`, the dev bundle is a second entry, and `bun run build` fails with `DEV module leaked into the build` if a `src/dev` module ever reaches the prod bundle (the `dbg` and `console` check still runs on the minified code).
+
+The bot plays through the game's own controls. It walks with synthetic `keydown` and `keyup` events on `window`, looks by writing the view angles `dbg.A`, and breaks or places with `dbg.act`, only once the game's own per-frame `dbg.hit` equals the target it planned. Every aim is first checked by running the game's `target()` on the live world, so what it plans is what the game does. It jumps one block steps, swims, wraps over the seam, and when a cell is out of reach it jumps and places dirt under its feet, then breaks that scaffold again from the top.
+
+| Call | What it does |
+|---|---|
+| `bot.goto(x, z, teleport = true)` | Walks to the stand cell of column `(x, z)`, a teleport is the fallback and is reported in `status().teleports` |
+| `bot.lookAt(x, y, z)` | Aims the view at a point |
+| `bot.place(x, y, z, id)` | Places block `id`, moving, pillaring or breaking a wrong block as needed |
+| `bot.break(x, y, z)` | Breaks a block, a plant above it goes with it |
+| `bot.select(id)` | Presses the digit key of block `id` and checks the game selected it |
+| `bot.waitFrames(n)` | Waits `n` game frames |
+| `bot.at(x, z, yaw, pitch, time)` | Stands on the ground of a column and looks along `yaw` and `pitch` with the sun clock at `time` (noon 121) |
+| `bot.fly(x, y, z, yaw, pitch, time)` | Holds the camera in the air at a point until a walk or `at` takes over |
+| `bot.top(x, z)` | The highest block above water in a column |
+| `bot.start(name, near)` | Starts building blueprint `name` on the flattest dry spot near `near` (`[x, z]`) and returns at once |
+| `bot.status()` | `phase` (`site`, `clearing`, `building`, `done`, `error`), `placed`, `broken`, `scaffold`, `frames`, `ms`, `origin`, `failures`, `teleports`, `error` |
+| `bot.check(name, origin)` | Reads the world at every blueprint cell and every scaffold cell, returns `{ expected, matching, missing }` |
+
+A blueprint is `{ name, size, cell(x, y, z) }` in `src/dev/blueprints.ts`, registered in `BLUEPRINTS`. `cell` returns the block id wanted at a local cell, `AIR` (0) to clear it, `ANY` (-1) for any solid block (the builder fills it with grass on the ground layer and dirt below), or `undefined` outside the box. Local y 0 is the ground layer. The `house` is a 9x9x9 box of 291 blocks: a stone and plank floor flush with the grass, a stone course, plank walls, log corners, a 2 high door, five windows and a brick gable roof. The builder levels a 13x13 footprint around it first (holes are filled with dirt, trees and plants are cleared), then breaks everything in the way top-down and places the lowest block that touches a solid one, so every block rests on a built neighbour.
+
+`bun run bot house` prints one summary line, for example `house at 320,27,309: placed 316, broken 85, scaffold 75, failures 0, teleports 0, 2.4 min, 25413 frames, mean dt 5.6 ms, 804/804 cells`, plus progress shots and `final.webp` with `--shot <dir>`. A run takes 2.5 to 3 minutes in headless Chrome and ends with every cell matching (the 729 blueprint cells and every scaffold cell back to air, 804 of 804 in that run), no teleports and a clean console. `bun run test:bot` asserts exactly that. `src/dev/bot.test.ts` runs the same bot against a fake game that mirrors `main.ts`, at two frame times, in `bun run test`.
