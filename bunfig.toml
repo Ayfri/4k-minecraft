@@ -1,6 +1,9 @@
 [serve.static]
 plugins = ["./scripts/wgsl-plugin.ts"]
 
+[run]
+silent = true
+
 [test]
 coverageReporter = ["text"]
 pathIgnorePatterns = ["**/*.fuzz.test.ts"]

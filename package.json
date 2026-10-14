@@ -6,6 +6,7 @@
     "build": "bun scripts/build.ts",
     "check": "tsc",
     "dev": "bun scripts/serve.ts",
+    "gate": "bun scripts/gate.ts",
     "screenshots": "bun scripts/screenshots.ts",
     "test": "bun test",
     "test:e2e": "bun scripts/build.ts && bun test scripts/e2e.test.ts",
