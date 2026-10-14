@@ -7,7 +7,7 @@ const v: Vec3 = [0, 0, 0];
 const A: [number, number] = [-2.4, -.25];
 /** Milliseconds added to the page clock, set by `dbg.time`. */
 let clock = 0;
-const keys: Record<string, boolean> = {};
+let keys: Record<string, boolean> = {};
 const key = (code: string) => +!!keys[code];
 
 c.style = 'position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated';
@@ -35,7 +35,7 @@ const renderBinds = bind(render);
 /** The targeted voxel index and the free cell in front of it, refreshed every frame. */
 let hit: [number, number] | undefined;
 
-/** Writes the 11 floats of the `Uniforms` struct: eye, time, view direction, seed, canvas size, targeted voxel index (-1 for none). */
+/** Writes the `Uniforms` floats: eye, time, view direction, seed, canvas size, targeted voxel index (-1 for none). */
 const upload = (seconds: number, eye: Vec3, dir: Vec3) => queue.writeBuffer(uniforms, 0, new Float32Array([...eye, seconds, ...dir, 1, c.width, c.height, hit?.[0] ?? -1]));
 
 const t0 = DEV ? performance.now() : 0;
@@ -67,7 +67,7 @@ const put = (i: number, b: number) => {
 	queue.writeBuffer(world, i & ~3, V, i & ~3, 4);
 };
 
-/** Left button (0) breaks the targeted block, right button (2) places the selected block in front of it unless that cell is taken or inside the player. */
+/** Left click breaks the target and the flower above it, right click places the selected block in a free cell or over a flower, never inside the player. */
 const act = (button: number) => {
 	if (!hit) return;
 	const [i, free] = hit;
@@ -83,8 +83,9 @@ const act = (button: number) => {
 /** Block placed by the right button, picked with the digit keys 1 to 9 (ids 3 to 11, `Digit1` is grass). */
 let selected = 3;
 onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = (+e.code[5]! || selected - 2) + 2));
-onmousedown = e => (document.pointerLockElement ? act(e.button) : c.requestPointerLock({ unadjustedMovement: true }));
+onmousedown = e => (document.pointerLockElement ? act(e.button) : c.requestPointerLock({ unadjustedMovement: true }).catch(() => c.requestPointerLock()));
 oncontextmenu = () => !1;
+onblur = () => (keys = {});
 onmousemove = e => {
 	if (!document.pointerLockElement) return;
 	A[0] += e.movementX * .002;
