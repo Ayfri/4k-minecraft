@@ -1,10 +1,16 @@
-/** Variants are ranked by libdeflate length (a fast proxy), the best two are packed for real. */
+/** The tuned chain (`minify.best.json`: Closure Compiler, then terser stages with tuned mangler alphabets) competes with fixed terser variants. */
+import { tmpdir } from 'node:os';
 import { minify, type MinifyOptions } from 'terser';
+import { nthIdentifier, stageOptions, type Stage } from './lib/terser-space.ts';
+import best from './minify.best.json';
 import { pack, type Packed } from './pack.ts';
 
 type Compress = Exclude<NonNullable<MinifyOptions['compress']>, boolean>;
 
-/** The compress options of the current build, every variant overrides a few of them. */
+/** The committed chain, `bun run minify:search` rewrites it. */
+export const STAGES = best.stages as Stage[];
+
+/** The compress options of the fixed variants, each variant overrides a few of them. */
 const BASE: Compress = { booleans_as_integers: true, keep_fargs: false, passes: 3, pure_getters: true, unsafe: true, unsafe_arrows: true, unsafe_comps: true, unsafe_math: true, unsafe_methods: true };
 
 const terser = (compress: Compress | false, mangle: MinifyOptions['mangle'] = {}, format: MinifyOptions['format'] = {}): MinifyOptions => ({
@@ -52,6 +58,36 @@ const TERSER: Record<string, MinifyOptions> = {
 const bun = async (js: string) =>
 	(await (await Bun.build({ entrypoints: ['/in.js'], files: { '/in.js': js }, minify: true, target: 'browser' })).outputs[0]!.text()).trim();
 
+const CLOSURE_PLATFORMS: Record<string, string> = { darwin: 'macos', linux: `linux${process.arch === 'arm64' ? '-arm64' : ''}`, win32: 'windows' };
+/** The native binary of `google-closure-compiler`, undefined when its optional platform package is not installed. */
+const CLOSURE = (() => {
+	try {
+		return Bun.resolveSync(`google-closure-compiler-${CLOSURE_PLATFORMS[process.platform]}/compiler${process.platform === 'win32' ? '.exe' : ''}`, import.meta.dir);
+	} catch {}
+})();
+const EXTERNS = `${import.meta.dir}/lib/closure-externs.js`;
+let warned = false;
+
+/** Closure Compiler at SIMPLE level, undefined (and one warning) when the binary is missing. `var c` is the canvas, an extern. */
+export async function closure(js: string) {
+	if (!CLOSURE) {
+		if (!warned) console.warn('google-closure-compiler is not installed: the build skips the Closure stage and the page is about 60 B larger.');
+		warned = true;
+		return undefined;
+	}
+	const file = `${tmpdir()}/4k-closure-${crypto.randomUUID()}.js`;
+	await Bun.write(file, js);
+	try {
+		const args = ['--js', file, '--externs', EXTERNS, '--compilation_level', 'SIMPLE', '--language_in', 'ECMASCRIPT_NEXT', '--language_out', 'ECMASCRIPT_NEXT', '--warning_level', 'QUIET', '--jscomp_off=undefinedVars'];
+		const proc = Bun.spawn([CLOSURE, ...args], { stderr: 'pipe', stdout: 'pipe' });
+		const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+		if (code) throw new Error(`closure compiler failed: ${err.slice(0, 400)}`);
+		return out.trim();
+	} finally {
+		await Bun.file(file).delete();
+	}
+}
+
 interface Variant {
 	deflated: number;
 	js: string;
@@ -61,10 +97,23 @@ interface Variant {
 const deflated = (s: string) => Bun.deflateSync(s, { level: 12, library: 'libdeflate' }).length;
 const run = async (js: string, options: MinifyOptions) => (await minify(js, options)).code!;
 
+/** `js` through the terser stages of a chain, the committed ones by default. */
+export async function chain(js: string, stages: Stage[] = STAGES) {
+	for (const stage of stages) js = await run(js, stageOptions(stage));
+	return js;
+}
+
 /** Every variant of `wrapped` (the bundle inside its `(async()=>{...})()` wrapper), smallest deflate first. */
 async function variants(wrapped: string): Promise<Variant[]> {
 	const out = new Map<string, string>();
+	const closed = await closure(wrapped);
+	out.set(closed ? 'closure > chain' : 'chain', await chain(closed ?? wrapped));
 	await Promise.all(Object.entries(TERSER).map(async ([name, options]) => out.set(`terser ${name}`, await run(wrapped, options))));
+	const alphabet = STAGES.at(-1)?.alphabet;
+	if (alphabet) {
+		const top = Object.keys(TERSER).map(name => ({ name, size: deflated(out.get(`terser ${name}`)!) })).sort((a, b) => a.size - b.size).slice(0, 3);
+		for (const { name } of top) out.set(`terser ${name} + alphabet`, await run(wrapped, { ...TERSER[name]!, mangle: { reserved: ['c'], ...(TERSER[name]!.mangle as object), nth_identifier: nthIdentifier(alphabet) } }));
+	}
 	const bunned = await bun(wrapped);
 	out.set('bun', bunned);
 	out.set('bun > terser', await run(bunned, TERSER.base!));

@@ -1,0 +1,75 @@
+{
+	"stages": [
+		{
+			"alphabet": "edtamfcuvoknsqbxgjywhlHpKziMBCrUNAEFPGLW_QTDIRSXOYJVZ$",
+			"options": {
+				"ecma": 2022,
+				"module": false,
+				"toplevel": true,
+				"compress": {
+					"arguments": false,
+					"arrows": true,
+					"booleans": true,
+					"booleans_as_integers": true,
+					"collapse_vars": true,
+					"comparisons": true,
+					"computed_props": true,
+					"conditionals": true,
+					"dead_code": true,
+					"directives": true,
+					"drop_debugger": true,
+					"evaluate": true,
+					"expression": false,
+					"hoist_funs": false,
+					"hoist_props": true,
+					"hoist_vars": false,
+					"if_return": true,
+					"inline": 3,
+					"join_vars": true,
+					"keep_fargs": true,
+					"keep_infinity": false,
+					"lhs_constants": true,
+					"loops": true,
+					"negate_iife": true,
+					"passes": 3,
+					"properties": true,
+					"pure_getters": true,
+					"pure_new": false,
+					"reduce_funcs": true,
+					"reduce_vars": true,
+					"sequences": false,
+					"side_effects": false,
+					"switches": true,
+					"typeofs": true,
+					"unsafe": true,
+					"unsafe_arrows": true,
+					"unsafe_comps": false,
+					"unsafe_Function": false,
+					"unsafe_math": true,
+					"unsafe_methods": true,
+					"unsafe_proto": false,
+					"unsafe_regexp": false,
+					"unsafe_symbols": false,
+					"unsafe_undefined": false,
+					"unused": true
+				},
+				"format": {
+					"ascii_only": false,
+					"braces": false,
+					"keep_numbers": true,
+					"quote_keys": false,
+					"quote_style": 0,
+					"semicolons": true,
+					"wrap_func_args": false,
+					"wrap_iife": true
+				},
+				"mangle": {
+					"reserved": [
+						"c"
+					],
+					"eval": false
+				}
+			}
+		}
+	]
+}
