@@ -135,7 +135,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
     let am = (vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3);
     let sh = max(dot(n, lv), 0) * step(1e9, M(P + n * .01, lv, WATER, 64));
     col = al * (li * sh + am);
-    if ol { col = 1 - col; }
+    if ol { col = abs(1 - col); }
     col = mix(col, sky, smoothstep(40, 120, t));
   }
   col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .3));
