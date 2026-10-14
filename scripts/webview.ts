@@ -54,19 +54,23 @@ for (let i = 0; i < 100 && !ws; i++) {
 		.catch(() => '');
 }
 if (!ws) throw new Error('no DevTools endpoint');
-const view = new Bun.WebView({ backend: { type: 'chrome', url: ws }, height, width });
-
 interface Remote {
 	description?: string;
 	value?: unknown;
 }
 const logs: string[] = [];
+/** The backend consumes `Runtime.consoleAPICalled` for the `console` option, a listener on that event never fires. */
+const view = new Bun.WebView({
+	backend: { type: 'chrome', url: ws },
+	console: (type, ...args) => logs.push(`[${type}] ${args.map(a => (typeof a === 'object' && a ? (a as Remote).description : a)).join(' ')}`),
+	height,
+	width,
+});
 const on = <T>(event: `${string}.${string}`, listener: (data: T) => void) => view.addEventListener(event, e => listener((e as MessageEvent<T>).data));
 await view.navigate('about:blank');
 /** Only one `cdp()` and one `evaluate()` may be in flight per view. */
 await view.cdp('Runtime.enable');
 await view.cdp('Log.enable');
-on<{ args: Remote[]; type: string }>('Runtime.consoleAPICalled', p => logs.push(`[${p.type}] ${p.args.map(a => a.value ?? a.description).join(' ')}`));
 on<{ exceptionDetails: { exception?: Remote } }>('Runtime.exceptionThrown', p => logs.push(`[exception] ${JSON.stringify(p.exceptionDetails.exception?.description ?? p.exceptionDetails)}`));
 on<{ entry: { level: string; text: string } }>('Log.entryAdded', p => logs.push(`[${p.entry.level}] ${p.entry.text}`));
 await view.navigate(url);
