@@ -19,7 +19,7 @@ export interface Packed {
 
 const ascii = (s: string) => Uint8Array.from(s, c => c.charCodeAt(0));
 
-async function candidates(input: Uint8Array<ArrayBuffer>): Promise<[string, Uint8Array][]> {
+export async function candidates(input: Uint8Array<ArrayBuffer>): Promise<[string, Uint8Array][]> {
 	const out: [string, Uint8Array][] = [
 		['zlib-9', Bun.deflateSync(input, { level: 9 })],
 		['libdeflate-12', Bun.deflateSync(input, { level: 12, library: 'libdeflate' })],
@@ -31,7 +31,7 @@ async function candidates(input: Uint8Array<ArrayBuffer>): Promise<[string, Uint
 }
 
 /** Escapes CR and the escape byte, or returns undefined when the stream would break the comment it sits in. */
-function encode(stream: Uint8Array): { data: Uint8Array; escape: number } | undefined {
+export function encode(stream: Uint8Array): { data: Uint8Array; escape: number } | undefined {
 	const counts = new Uint32Array(256);
 	for (const b of stream) counts[b]!++;
 	const escape = ESCAPES.reduce((best, b) => (counts[b]! < counts[best]! ? b : best));
@@ -48,9 +48,13 @@ function encode(stream: Uint8Array): { data: Uint8Array; escape: number } | unde
  */
 export async function pack(js: string): Promise<Packed> {
 	const input = new TextEncoder().encode(js);
+	let best: { codec: string; encoded: NonNullable<ReturnType<typeof encode>>; stream: Uint8Array } | undefined;
 	for (const [codec, stream] of await candidates(input)) {
 		const encoded = encode(stream);
-		if (!encoded) continue;
+		if (encoded && (!best || encoded.data.length < best.encoded.data.length)) best = { codec, encoded, stream };
+	}
+	if (best) {
+		const { codec, encoded, stream } = best;
 		const e = String.fromCharCode(encoded.escape);
 		const decoder = `new Response(new Response(Uint8Array.from(c.firstChild.data.replace(/${e}./g,m=>m<"${e}1"?"${e}":"\\r"),c=>(i="\u0000".indexOf(c))<0?c.charCodeAt():i&&i+127)).body.pipeThrough(new DecompressionStream("deflate-raw"))).text().then(eval)`;
 		const [before, after] = decoder.split('\u0000') as [string, string];
