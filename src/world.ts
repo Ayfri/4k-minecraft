@@ -7,27 +7,29 @@ export const SEA = 24;
 /** Highest column that gets a beach and no trees. */
 export const SHORE = SEA + 1;
 export const AIR = 0;
-export const WATER = 1;
-export const GRASS = 2;
-export const DIRT = 3;
-export const STONE = 4;
-export const SAND = 5;
-export const LOG = 6;
-export const LEAVES = 7;
-export const PLANKS = 8;
-export const BRICKS = 9;
-export const SNOW = 10;
-export const COAL = 11;
-export const IRON = 12;
-export const DIAMOND = 13;
-export const BLOCKS = 14;
+/** Flowers are the one non-solid block a ray stops at (a cutout texture), every block above WATER is solid. */
+export const FLOWER = 1;
+export const WATER = 2;
+export const GRASS = 3;
+export const DIRT = 4;
+export const STONE = 5;
+export const SAND = 6;
+export const LOG = 7;
+export const LEAVES = 8;
+export const PLANKS = 9;
+export const BRICKS = 10;
+export const SNOW = 11;
+export const COAL = 12;
+export const IRON = 13;
+export const DIAMOND = 14;
+export const BLOCKS = 15;
 
 /** Voxel index of a position, one byte per cell. x and z wrap by bitmask, y at or past HEIGHT lands past the buffer. The bitwise operators truncate, so x and z shift by SIZE first to floor down to -SIZE. */
 export const idx = (x: number, y: number, z: number) => (MASK & (x + SIZE)) | ((MASK & (z + SIZE)) << 9) | (y << 18);
 
 export type Vec3 = [number, number, number];
 
-/** Stone below the world, air above it (the lookup lands past the buffer, `undefined > WATER` is false), water never blocks. */
+/** Stone below the world, air above it (the lookup lands past the buffer, `undefined > WATER` is false), water and flowers never block. */
 export const solid = (V: Uint8Array, x: number, y: number, z: number) => y < 0 || V[idx(x, y, z)]! > WATER;
 
 /** Whether the 0.6 x 1.8 box standing on the feet position `p` overlaps a solid cell. The samples are 0.9 apart on y so no cell is skipped. */

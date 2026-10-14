@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { collides, HEIGHT, idx, move, SIZE, solid, STONE, target, type Vec3, WATER } from './world.ts';
+import { collides, FLOWER, HEIGHT, idx, move, SIZE, solid, STONE, target, type Vec3, WATER } from './world.ts';
 
 /** A 16 MiB world with stone for every cell below `floor`. */
 const flat = (floor: number) => new Uint8Array(1 << 24).fill(STONE, 0, idx(0, floor, 0));
@@ -128,6 +128,14 @@ describe('target', () => {
 		V[idx(100, 12, 98)] = WATER;
 		V[idx(100, 12, 100)] = STONE;
 		expect(target(V, eye, [0, 0, 1])).toEqual([idx(100, 12, 100), idx(100, 12, 99)]);
+	});
+
+	test('looks through flowers', () => {
+		const V = flat(10);
+		V[idx(100, 12, 98)] = FLOWER;
+		V[idx(100, 12, 100)] = STONE;
+		expect(target(V, eye, [0, 0, 1])).toEqual([idx(100, 12, 100), idx(100, 12, 99)]);
+		expect(collides(V, [100.5, 11, 98.5])).toBe(false);
 	});
 
 	test('wraps over the seam', () => {

@@ -6,7 +6,7 @@ var<private> C: vec3i;
 var<private> N: vec3f;
 var<private> K: u32;
 
-const COLORS = array(0u, 0x35c, 0x5a3, 0x864, 0x888, 0xed9, 0x753, 0x373, 0xb85, 0xa43, 0xfff, 0x333, 0xc98, 0x5ee);
+const COLORS = array(0u, 0xd33, 0xfd3, 0x5a3, 0x864, 0x888, 0xed9, 0x753, 0x373, 0xb85, 0xa43, 0xfff, 0x333, 0xc98, 0x5ee);
 
 /** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
 fn H(c: vec3u) -> f32 {
@@ -27,7 +27,22 @@ fn B(c: vec3i) -> u32 {
   return (W[i >> 2] >> (i % 4 * 8)) & 255;
 }
 
-/** Amanatides-Woo march through blocks up to `k`, returns the distance and leaves the hit cell, face and block in C, N and K. */
+/** Texel (16x16 per face) of the point `P` on the face N of its cell. */
+fn A(P: vec3f) -> vec2u {
+  return vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
+}
+
+/** Colour index of the flower texel `u` of the cell C, 0 where it is transparent (the top face always is): a stem, and a red or yellow head. */
+fn F(u: vec2u) -> u32 {
+  let a = abs(i32(u.x) * 2 - 15);
+  if N.y == 0 {
+    if a < 2 && u.y > 5 { return GRASS; }
+    if a < 6 && u.y > 0 && u.y < 6 { return 1 + u32(H(vec3u(C.zyx)) * 2); }
+  }
+  return 0;
+}
+
+/** Amanatides-Woo march through blocks up to `k`, returns the distance and leaves the hit cell, face and block in C, N and K. A flower only stops it on an opaque texel. */
 fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   let s = sign(d);
   let r = 1 / max(abs(d), vec3f(1e-6));
@@ -36,7 +51,8 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   var e = (s * (vec3f(C) - o) + s * .5 + .5) * r;
   for (var i = 0; i < n; i++) {
     K = B(C);
-    if K > k { return dot(N, e - r); }
+    let t = dot(N, e - r);
+    if K > k && (K != FLOWER || F(A(o + d * t)) > 0) { return t; }
     if C.y > TOP && d.y > 0 { break; }
     N = step(e, min(e.yzx, e.zxy));
     e += N * r;
@@ -72,6 +88,8 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
     if t.y % 4 == 0 || (t.x + t.y / 4 % 2 * 4) % 8 == 0 { return vec3f(.7) * m; }
   } else if b == STONE {
     m = .8 + .15 * q + .25 * H(vec3u(t / 2, 9));
+  } else if b == FLOWER {
+    k = F(t);
   } else if b > SNOW && H(vec3u(t / 2, b)) < .8 { k = STONE; }
   return vec3f((vec3u(COLORS[k]) >> vec3u(8, 4, 0)) & vec3u(15)) / 15 * m;
 }
@@ -87,7 +105,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   /** Sky gradient without sun or stars, also the colour distant terrain fades to. */
   let sky = mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .03;
   let eyeIn = B(vec3i(floor(U.p))) == WATER;
-  var t = M(U.p, d, u32(eyeIn), 256);
+  var t = M(U.p, d, u32(eyeIn) * WATER, 256);
   var wd = f32(eyeIn) * t;
   if K == WATER {
     wd = M(U.p + d * (t + .01), d, WATER, 128) + .01;
@@ -97,7 +115,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   if K > 0 {
     let P = U.p + d * t;
     let n = -N * sign(d);
-    var u = vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
+    var u = A(P);
     if n.y > 0 {
       let r = u32(H(vec3u(C.zyx)) * 4);
       if r % 2 > 0 { u = u.yx; }
@@ -161,6 +179,7 @@ fn T(x: u32, z: u32) -> f32 {
     let tz = t.y * 8 + 2 + u32(r * 400) % 4;
     let th = T(tx, tz);
     let tree = r < .3 && th > SHORE && th < 46 && !desert;
+    var below = 0u;
     for (var y = 0u; y < 64; y++) {
       let c = vec3u(x, y, z);
       let p = vec3f(c);
@@ -170,6 +189,7 @@ fn T(x: u32, z: u32) -> f32 {
       if p.y > h {
         if tree && d.x == 0 && d.z == 0 && d.y > -4 && d.y < 1 { b = LOG; }
         else if tree && abs(d.y + .5) < 2 && dot(d, d) < 5.5 - q { b = LEAVES; }
+        else if below == GRASS && q < .05 { b = FLOWER; }
         else if p.y <= SEA { b = WATER; }
       } else {
         let beach = h <= SHORE || desert;
@@ -183,6 +203,7 @@ fn T(x: u32, z: u32) -> f32 {
         }
         if y > 0 && !(beach && p.y > h - 3) && Q(p, 16) > .78 { b = AIR; }
       }
+      below = b;
       W[u.x | (y << 16)] |= b << (k * 8);
     }
   }

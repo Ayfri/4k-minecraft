@@ -73,15 +73,15 @@ const act = (button: number) => {
 	const [i, free] = hit;
 	if (button < 2) return put(i, 0);
 	const old = V[free]!;
-	if (old < 2) {
+	if (old <= WATER) {
 		put(free, selected);
 		if (collides(V, P)) put(free, old);
 	}
 };
 
-/** Block placed by the right button, picked with the digit keys 1 to 9 (ids 2 to 10, `Digit1` is grass). */
-let selected = 2;
-onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = (+e.code[5]! || selected - 1) + 1));
+/** Block placed by the right button, picked with the digit keys 1 to 9 (ids 3 to 11, `Digit1` is grass). */
+let selected = 3;
+onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = (+e.code[5]! || selected - 2) + 2));
 onmousedown = e => (document.pointerLockElement ? act(e.button) : c.requestPointerLock({ unadjustedMovement: true }));
 oncontextmenu = () => !1;
 onmousemove = e => {
