@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { AIR, BRICKS, DIRT, FLOWER, GRASS, idx, LOG, PLANKS, SNOW, STONE, target, type Vec3, WATER } from '../world.ts';
+import { AIR, BRICKS, DIRT, FLOWER, GLASS, GRASS, idx, LOG, PLANKS, STONE, target, type Vec3, WATER } from '../world.ts';
 import { ANY, BLUEPRINTS, type Blueprint } from './blueprints.ts';
 import { aim, explore, jobs, route, site, stands, supported } from './plan.ts';
 
@@ -19,17 +19,18 @@ const cells = (bp: Blueprint) => {
 const dirOf = ([yaw, pitch]: [number, number]): Vec3 => [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
 
 describe('house blueprint', () => {
-	test('291 blocks of the placeable palette in a 9x9x9 box', () => {
+	test('296 blocks of the placeable palette in a 9x9x9 box', () => {
 		const blocks = cells(house).filter(([, , , b]) => b > AIR);
-		expect(blocks).toHaveLength(291);
-		expect(blocks.every(([, , , b]) => b >= GRASS && b <= SNOW)).toBe(true);
+		expect(blocks).toHaveLength(296);
+		expect(blocks.every(([, , , b]) => b >= GRASS && b <= GLASS)).toBe(true);
 		expect(house.size).toEqual([9, 9, 9]);
 		expect(house.cell(9, 0, 0)).toBeUndefined();
 		expect(house.cell(0, -1, 0)).toBeUndefined();
 	});
 
-	test('the door and the five windows are open, the lintel is not', () => {
-		for (const [x, y, z] of [[4, 1, 1], [4, 2, 1], [2, 2, 1], [6, 2, 1], [1, 2, 4], [7, 2, 4], [4, 2, 7]] as const) expect(house.cell(x, y, z)).toBe(AIR);
+	test('the door is open, the five windows are glass, the lintel is planks', () => {
+		for (const [x, y, z] of [[4, 1, 1], [4, 2, 1]] as const) expect(house.cell(x, y, z)).toBe(AIR);
+		for (const [x, y, z] of [[2, 2, 1], [6, 2, 1], [1, 2, 4], [7, 2, 4], [4, 2, 7]] as const) expect(house.cell(x, y, z)).toBe(GLASS);
 		expect(house.cell(4, 3, 1)).toBe(PLANKS);
 		expect(house.cell(1, 4, 1)).toBe(LOG);
 		expect(house.cell(4, 8, 4)).toBe(BRICKS);
