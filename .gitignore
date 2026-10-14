@@ -13,5 +13,6 @@ logs
 .cache
 *.tsbuildinfo
 
-# IntelliJ based IDEs
+# IDE settings
 .idea
+.vscode
