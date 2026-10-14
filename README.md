@@ -1,6 +1,6 @@
 # 4k-minecraft
 
-A remake of Notch's 2009 Minecraft 4k as one self-extracting HTML file of at most 4096 bytes, rendered with WebGPU. The page, `dist/index.html`, is 4073 bytes.
+A remake of Notch's 2009 Minecraft 4k as one self-extracting HTML file of at most 4096 bytes, rendered with WebGPU. The page, `dist/index.html`, is 4091 bytes.
 
 ## Screenshots
 
@@ -18,7 +18,7 @@ A remake of Notch's 2009 Minecraft 4k as one self-extracting HTML file of at mos
 <td width="50%"><img src="screenshots/blocks.webp" alt="A 3x3 build of the nine placeable blocks"><br><sub>The nine placeable blocks and their 16x16 procedural textures.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="screenshots/flowers.webp" alt="Red and yellow flowers in a meadow"><br><sub>A flower meadow seen from the ground.</sub></td>
+<td width="50%"><img src="screenshots/flowers.webp" alt="Red and yellow flowers and grass tufts in a meadow"><br><sub>A meadow of flowers and short grass tufts seen from the ground.</sub></td>
 <td width="50%"><img src="screenshots/underwater.webp" alt="The sandy bottom of a lake seen from under the surface"><br><sub>Underwater: the sandy bottom of a lake behind the blue tint.</sub></td>
 </tr>
 </table>
@@ -31,10 +31,10 @@ Notch's entry for the Java 4K contest, released in December 2009, was 2581 bytes
 
 ## Features
 
-- World: 512x512x64 cells that wrap around on x and z. Value-noise terrain, lakes at sea level with beaches, deserts, snow on the peaks, caves, trees, flowers on the grass and coal, iron and diamond ores.
+- World: 512x512x64 cells that wrap around on x and z. Value-noise terrain, lakes at sea level with beaches, deserts, snow on the peaks, caves, trees, flowers and short grass tufts on the grass and coal, iron and diamond ores.
 - Physics: a 0.6 x 1.8 box with gravity, jumping, wall and ceiling collisions and swimming. One block can be climbed by jumping, and Space in water jumps out of the lake onto the shore.
-- Rendering: voxel ray marching per pixel at half the window resolution, procedural 16x16 textures, ambient occlusion, sun shadows, a day and night cycle with stars, distance fog, underwater tint, a block outline and a crosshair.
-- Blocks: break the block you aim at (reach of 6 blocks, a flower above it goes with it) and place the selected block in front of it. A flower can be broken directly or replaced by a block.
+- Rendering: voxel ray marching per pixel at half the window resolution, procedural 16x16 textures with colours and patterns matched to the vanilla block textures, ambient occlusion, sun shadows, a day and night cycle with stars, distance fog, underwater tint, a block outline and a crosshair.
+- Blocks: break the block you aim at (reach of 6 blocks, a plant above it goes with it) and place the selected block in front of it. A flower or a tuft can be broken directly or replaced by a block.
 
 ## Controls
 
