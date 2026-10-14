@@ -1,0 +1,6 @@
+[serve.static]
+plugins = ["./scripts/wgsl-plugin.ts"]
+
+[test]
+coverageReporter = ["text"]
+timeout = 30000
