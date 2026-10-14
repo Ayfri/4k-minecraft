@@ -1,10 +1,14 @@
 struct Uniforms { p: vec3f, t: f32, a: vec3f, h: u32, r: vec2f }
 @group(0) @binding(0) var<storage, read_write> W: array<u32>;
-@group(0) @binding(1) var<uniform> U: Uniforms;
+/** The canvas texture, written by the render branch of `g`. */
+@group(0) @binding(1) var Z: texture_storage_2d<rgba8unorm, write>;
+var<immediate> U: Uniforms;
 
 var<private> C: vec3i;
 var<private> N: vec3f;
 var<private> K: u32;
+/** Whether `M` stopped on the outline band of the targeted cell. */
+var<private> O: bool;
 
 const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3563, 0x5864, 0x2777, 0x1dca, 0x2653, 0x8462, 0x2a85, 0x3954, 0xfff, 0x2bbb, 0x6333, 0x4a87, 0x46bb);
 
@@ -32,20 +36,18 @@ fn A(P: vec3f) -> vec2u {
   return vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
 }
 
-/** Colour index of the plant texel `u` of the cell C: blades for a tuft, a stem and a red or yellow head for a flower, 0 where transparent (the top face always is). Leaves have holes, glass keeps its frame and a streak. */
+/** Colour index of the plant texel `u` of the cell C: blades for a tuft, a stem and a red or yellow head for a flower, 0 where transparent (plants only reach it through the diagonal planes of `M`). Leaves have holes, glass keeps its frame and a streak. */
 fn F(u: vec2u) -> u32 {
   if K == GLASS { return u32(any(u % 15 == vec2u()) || (u.x + u.y == 6 && u.x - 2 < 3)); }
   if K > TUFT { return u32(K != LEAVES || H(vec3u(u, K)) > .3); }
   let a = abs(i32(u.x) * 2 - 15);
-  if N.y == 0 {
-    if K == TUFT { return K * u32(u.y > 1 + u32(H(vec3u(u.x, 3, 3)) * 10)); }
-    if a < 2 && u.y > 9 { return GRASS; }
-    if a + abs(i32(u.y) - 7) * 2 < 7 { return 1 + u32(H(vec3u(C.zyx)) * 2) * 2; }
-  }
+  if K == TUFT { return K * u32(u.y > 1 + u32(H(vec3u(u.x, 3, 3)) * 10)); }
+  if a < 2 && u.y > 9 { return GRASS; }
+  if a + abs(i32(u.y) - 7) * 2 < 7 { return 1 + u32(H(vec3u(C.zyx)) * 2) * 2; }
   return 0;
 }
 
-/** Amanatides-Woo march past blocks up to `k`, returns the distance and leaves cell, face and block in C, N, K (flowers: opaque texels). */
+/** Amanatides-Woo march past blocks up to `k`, returns the distance and leaves cell, face and block in C, N, K. Leaves and glass stop on opaque face texels, plants on the opaque texels of the two diagonal planes `x = z` and `x + z = 1` of their cell (N is then +x), any block on the outline band of the targeted cell. */
 fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   let s = sign(d);
   let r = 1 / (abs(d) + 1e-6);
@@ -55,7 +57,22 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   for (var i = 0; i < n; i++) {
     K = B(C);
     let t = dot(N, e - r);
-    if K > k && F(A(o + d * t)) > 0 { return t; }
+    let P = o + d * t;
+    if K > k {
+      O = I(C) == U.h && any(abs(fract(P) - .5) * (1 - N) > vec3f(.48));
+      if O || (K > TUFT && F(A(P)) > 0) { return t; }
+      if K < WATER {
+        let p = P - vec3f(C);
+        var b = 1e9;
+        N = vec3f(1, 0, 0);
+        for (var j = -1.; j < 2; j += 2) {
+          let h = ((j + 1) / 2 - p.x - j * p.z) / (d.x + j * d.z);
+          let Q = p + d * h;
+          if h > 0 && all(Q == fract(Q)) && F(A(Q)) > 0 { b = min(b, h); }
+        }
+        if b < 1e9 { return t + b; }
+      }
+    }
     if C.y > TOP && d.y > 0 { break; }
     N = step(e, min(e.yzx, e.zxy));
     e += N * r;
@@ -63,10 +80,6 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   }
   K = 0;
   return 1e9;
-}
-
-@vertex fn v(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
-  return vec4f(vec2f(vec2u(i & 1, i >> 1)) * 4 - 1, 0, 1);
 }
 
 /** Colour of texel `t` (16x16 per face) of block `b` seen from the side `n`, the same tile for every block of a type. */
@@ -95,19 +108,22 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   return c * c;
 }
 
-@fragment fn f(@builtin(position) q: vec4f) -> @location(0) vec4f {
+/** Colour of the pixel at `q` (y down), its corner, so the crosshair arms are 1 px wide on an even canvas size and 2 px on an odd one. */
+fn f(q: vec2f) -> vec4f {
   let fw = U.a;
   let r = normalize(vec3f(fw.z, 0, -fw.x));
-  let uv = (2 * q.xy - U.r) / U.r.y;
+  let uv = (2 * q - U.r) / U.r.y;
   let d = normalize(fw * 1.4 + r * uv.x + cross(r, fw) * uv.y);
   let w = U.t * .01047 + .3;
   let L = normalize(vec3f(cos(w), sin(w), .4));
   let D = saturate(L.y * 2 + .4);
   /** Sky gradient without sun or stars, also the colour distant terrain fades to. */
-  let sky = mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .03;
-  let eyeIn = B(vec3i(floor(U.p))) == WATER;
+  let sky = mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .015;
+  let eyeIn = B(vec3i(U.p)) == WATER;
   var t = M(U.p, d, u32(eyeIn) * WATER, 256);
   var wd = f32(eyeIn) * t;
+  /** Fog distance: to the water surface for water pixels, 0 under water where only the water tint applies. */
+  let s = t - wd;
   if K == WATER {
     wd = M(U.p + d * (t + .01), d, WATER, 128) + .01;
     t += wd;
@@ -115,34 +131,29 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   var col = sky + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000) + step(.985, H(vec3u(d * 200 + 250))) * (1 - D);
   if K > 0 {
     let P = U.p + d * t;
-    let n = -N * sign(d);
+    /** Plants are lit as an upward face, their +x plane normal would flip with the side they are seen from. */
+    let n = select(-N * sign(d), vec3f(0, 1, 0), K < WATER);
     var u = A(P);
-    if n.y > 0 {
+    if n.y > 0 && K > WATER {
       let r = u32(H(vec3u(C.zyx)) * 4);
       if r % 2 > 0 { u = u.yx; }
       if r > 1 { u.x = 15 - u.x; }
     }
-    let e = abs(fract(P) - .5) * (1 - N);
-    let ol = I(C) == U.h && any(e > vec3f(.46));
-    let lv = L * sign(L.y);
-    let li = vec3f(.1, .12, .22) + vec3f(.65, .5, .3) * saturate(L.y * 5);
+    let ol = O;
     let al = X(K, u, n);
     var ao = 0.;
-    let a = C + vec3i(n);
     for (var i = 0; i < 4; i++) {
-      let o = a + vec3i(select(n.zxy, n.yzx, i > 1)) * (i % 2 * 2 - 1);
-      if B(o) > WATER { ao += 1.5 - distance(P, vec3f(o) + .5); }
+      let o = C + vec3i(n) + vec3i(select(n.zxy, n.yzx, i > 1)) * (i % 2 * 2 - 1);
+      if B(o) > WATER { ao += saturate(1.5 - distance(P, vec3f(o) + .5)); }
     }
-    let am = (vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3);
-    let sh = max(dot(n, lv), 0) * step(1e9, M(P + n * .01, lv, WATER, 64));
-    col = al * (li * sh + am);
+    col = al * ((vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3) + vec3f(.65, .5, .3) * saturate(L.y * 5) * max(dot(n, L), 0) * step(1e9, M(P + n * .01, L, WATER, 64)));
     if ol { col = abs(1 - col); }
-    col = mix(col, sky, smoothstep(40, 120, t));
   }
-  col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .3));
-  let z = abs(q.xy - U.r / 2);
+  col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .2));
+  if s < 1e9 { col = mix(col, sky, smoothstep(60, 145, s)); }
+  let z = abs(q - U.r / 2);
   let o = sqrt(col);
-  return vec4f(select(o, 1 - o, min(z.x, z.y) < 1 && max(z.x, z.y) < 6), 1);
+  return vec4f(select(o, 1 - o, min(z.x, z.y) < 1 && max(z.x, z.y) < 9), 1);
 }
 
 /** Value noise with lattice cells of `c` blocks, wrapped so that it tiles the world when `c` divides 1024 (and 128 on y). */
@@ -168,8 +179,12 @@ fn T(x: u32, z: u32) -> f32 {
   return floor(clamp(SEA + (e - .45) * (50 + m * 300) + m * (130 + abs(Q(p, 64) - .5) * 300), 2, 124));
 }
 
+/** Draws pixel `u.xy` once the canvas size is set, else generates the 4 columns of world word `u.x`. */
 @compute @workgroup_size(64) fn g(@builtin(global_invocation_id) u: vec3u) {
-  _ = U.h;
+  if U.r.x > 0 {
+    textureStore(Z, u.xy, f(vec2f(u.xy)));
+    return;
+  }
   let z = u.x >> 8;
   for (var k = 0u; k < 4; k++) {
     let x = (u.x & 255) * 4 + k;

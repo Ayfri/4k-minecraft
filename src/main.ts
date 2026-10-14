@@ -10,59 +10,52 @@ let clock = 0;
 let keys: Record<string, boolean> = {};
 const key = (code: string) => +!!keys[code];
 
-c.style = 'position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated';
-c.width = innerWidth / 2;
-c.height = innerHeight / 2;
+c.style = 'position:fixed;inset:0';
+c.width = innerWidth;
+c.height = innerHeight;
 
 const device = await (await navigator.gpu.requestAdapter())!.requestDevice();
 const { queue } = device;
 const ctx = c.getContext('webgpu')!;
-ctx.configure({ device, format: 'bgra8unorm' });
+/** Usage 8 is STORAGE_BINDING: the compute shader writes each frame straight into the canvas texture (`bgra8unorm` would need a device feature). */
+ctx.configure({ device, format: 'rgba8unorm', usage: 8 });
 const module = device.createShaderModule({ code: shader });
 
 const world = device.createBuffer({ size: BYTES, usage: 140 });
-const uniforms = device.createBuffer({ size: 48, usage: 72 });
 const readback = device.createBuffer({ size: BYTES, usage: 9 });
-const entries = [
-	{ binding: 0, resource: world },
-	{ binding: 1, resource: uniforms },
-];
-const bind = (pipeline: GPUComputePipeline | GPURenderPipeline) => device.createBindGroup({ entries, layout: pipeline.getBindGroupLayout(0) });
-const compute = device.createComputePipeline({ compute: { module }, layout: 'auto' });
-const render = device.createRenderPipeline({ fragment: { module, targets: [{ format: 'bgra8unorm' }] }, layout: 'auto', vertex: { module } });
-const renderBinds = bind(render);
+const pipeline = device.createComputePipeline({ compute: { module }, layout: 'auto' });
 
 /** The targeted voxel index and the free cell in front of it, refreshed every frame. */
 let hit: [number, number] | undefined;
 
-/** Writes the `Uniforms`: eye, time, view direction, targeted voxel index as a u32 (exact past 2^24, 0xFFFFFFFF for none), canvas size. */
+/** The `Uniforms` immediates: eye, time, view direction, targeted voxel index as a u32 (exact past 2^24, 0xFFFFFFFF for none), canvas size, all 0 while the world generates. */
+const data = new Float32Array(12);
+
+/** Encodes one pass of `g` over `x` by `y` workgroups, with the world, the canvas texture and `data`. */
+const run = (x: number, y = 1) => {
+	const encoder = device.createCommandEncoder();
+	const pass = encoder.beginComputePass();
+	pass.setPipeline(pipeline);
+	pass.setBindGroup(0, device.createBindGroup({ entries: [{ binding: 0, resource: world }, { binding: 1, resource: ctx.getCurrentTexture() }], layout: pipeline.getBindGroupLayout(0) }));
+	pass.setImmediates(0, data);
+	pass.dispatchWorkgroups(x, y);
+	pass.end();
+	return encoder;
+};
+
 const upload = (seconds: number, eye: Vec3, dir: Vec3) => {
-	const data = new Float32Array([...eye, seconds, ...dir, 0, c.width, c.height]);
+	data.set([...eye, seconds, ...dir, 0, c.width, c.height]);
 	new Uint32Array(data.buffer)[7] = hit?.[0] ?? -1;
-	queue.writeBuffer(uniforms, 0, data);
 };
 
 const t0 = DEV ? performance.now() : 0;
-const gen = device.createCommandEncoder();
-const genPass = gen.beginComputePass();
-genPass.setPipeline(compute);
-genPass.setBindGroup(0, bind(compute));
-genPass.dispatchWorkgroups(4096);
-genPass.end();
+const gen = run(4096);
 gen.copyBufferToBuffer(world, readback, BYTES);
 queue.submit([gen.finish()]);
 await readback.mapAsync(1);
 const V = new Uint8Array(readback.getMappedRange());
 
-const draw = () => {
-	const encoder = device.createCommandEncoder();
-	const pass = encoder.beginRenderPass({ colorAttachments: [{ loadOp: 'clear', storeOp: 'store', view: ctx.getCurrentTexture() }] });
-	pass.setPipeline(render);
-	pass.setBindGroup(0, renderBinds);
-	pass.draw(3);
-	pass.end();
-	queue.submit([encoder.finish()]);
-};
+const draw = () => queue.submit([run(c.width / 64 + 1, c.height).finish()]);
 
 /** Sets a voxel and uploads the 4-byte word that holds it. */
 const put = (i: number, b: number) => {
@@ -89,6 +82,7 @@ onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = ((+e.c
 onmousedown = e => (document.pointerLockElement ? act(e.button) : c.requestPointerLock({ unadjustedMovement: true }).catch(() => c.requestPointerLock()));
 oncontextmenu = () => !1;
 onblur = () => (keys = {});
+onresize = () => ((c.width = innerWidth), (c.height = innerHeight));
 onmousemove = e => {
 	if (!document.pointerLockElement) return;
 	A[0] += e.movementX * .002;
