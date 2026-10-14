@@ -79,9 +79,9 @@ const act = (button: number) => {
 	}
 };
 
-/** Block placed by the right button, picked with the digit keys 1 to 9 (ids 4 to 12, `Digit1` is grass). */
+/** Block placed by the right button, picked with the digit keys (ids 4 to 13, `Digit1` is grass and `Digit0` the tenth, glass). */
 let selected = 4;
-onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = (+e.code[5]! || selected - 3) + 3));
+onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = ((+e.code[5]! + 9) % 10) + 4 || selected));
 onmousedown = e => (document.pointerLockElement ? act(e.button) : c.requestPointerLock({ unadjustedMovement: true }).catch(() => c.requestPointerLock()));
 oncontextmenu = () => !1;
 onblur = () => (keys = {});

@@ -6,7 +6,7 @@ var<private> C: vec3i;
 var<private> N: vec3f;
 var<private> K: u32;
 
-const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3563, 0x5864, 0x2777, 0x1dca, 0x2653, 0x8462, 0x2a85, 0x3954, 0xfff, 0x6333, 0x4a87, 0x46bb);
+const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3563, 0x5864, 0x2777, 0x1dca, 0x2653, 0x8462, 0x2a85, 0x3954, 0xfff, 0x2bbb, 0x6333, 0x4a87, 0x46bb);
 
 /** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
 fn H(c: vec3u) -> f32 {
@@ -32,8 +32,9 @@ fn A(P: vec3f) -> vec2u {
   return vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
 }
 
-/** Colour index of the plant texel `u` of the cell C: blades for a tuft, a stem and a red or yellow head for a flower, 0 where transparent (the top face always is). */
+/** Colour index of the plant texel `u` of the cell C: blades for a tuft, a stem and a red or yellow head for a flower, 0 where transparent (the top face always is). Leaves have holes, glass keeps its frame and a streak. */
 fn F(u: vec2u) -> u32 {
+  if K == GLASS { return u32(any(u % 15 == vec2u()) || (u.x + u.y == 6 && u.x - 2 < 3)); }
   if K > TUFT { return u32(K != LEAVES || H(vec3u(u, K)) > .3); }
   let a = abs(i32(u.x) * 2 - 15);
   if N.y == 0 {
@@ -88,7 +89,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
     if t.y % 4 > 2 || (t.x + t.y / 4 % 2 * 4) % 8 == 3 { k = STONE; }
   } else if b < WATER {
     k = F(t);
-  } else if b > SNOW && H(vec3u(t / 2, b)) < .8 { k = STONE; }
+  } else if b > GLASS && H(vec3u(t / 2, b)) < .8 { k = STONE; }
   let e = COLORS[k];
   let c = vec3f(vec3u(e >> 8, e >> 4, e) % 16) / 15 * (m + (q - .5) * f32(e >> 12) / 8);
   return c * c;

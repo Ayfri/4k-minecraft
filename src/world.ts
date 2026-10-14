@@ -20,9 +20,11 @@ export const LEAVES = 9;
 export const PLANKS = 10;
 export const BRICKS = 11;
 export const SNOW = 12;
-export const COAL = 13;
-export const IRON = 14;
-export const DIAMOND = 15;
+/** Solid for physics and `target`, the shader's march only stops on its frame and streak texels. */
+export const GLASS = 13;
+export const COAL = 14;
+export const IRON = 15;
+export const DIAMOND = 16;
 
 /** Voxel index, one byte per cell: x and z wrap by bitmask (the SIZE shift floors negatives), y past HEIGHT is out of range. */
 export const idx = (x: number, y: number, z: number) => (MASK & (x + SIZE)) | ((MASK & (z + SIZE)) << 9) | (y << 18);

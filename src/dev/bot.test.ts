@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { collides, DIRT, FLOWER, GRASS, idx, LEAVES, LOG, lift, move, STONE, target, type Vec3, WATER } from '../world.ts';
+import { collides, DIRT, FLOWER, GLASS, GRASS, idx, LEAVES, LOG, lift, move, STONE, target, type Vec3, WATER } from '../world.ts';
 import { Bot } from './bot.ts';
 /** Mirrors the frame loop, `act` and the digit rule of `main.ts` (the keys, `lift`, `move`, `target`, the `collides` revert), driven one fixed step at a time. */
 class FakeGame implements Dbg {
@@ -43,7 +43,7 @@ class FakeGame implements Dbg {
 
 	key(code: string, down: boolean) {
 		this.keys[code] = down;
-		this.selected = (+code[5]! || this.selected - this.shift) + this.shift;
+		this.selected = ((+code[5]! + 9) % 10) + 1 + this.shift || this.selected;
 	}
 
 	select(block = this.selected) {
@@ -180,4 +180,12 @@ test('select with a drifted digit mapping records a failure', () => {
 	expect(bot.select(STONE)).toBe(false);
 	expect(bot.stats.failures).toHaveLength(1);
 	expect(setup(flat(20), [100.5, 20, 100.5]).bot.select(STONE)).toBe(true);
+});
+
+test('select reaches every digit key, 0 is glass, other keys keep the block', () => {
+	const { bot, game } = setup(flat(20), [100.5, 20, 100.5]);
+	for (let id = GRASS; id <= GLASS; id++) expect(bot.select(id)).toBe(true);
+	game.key('KeyW', true);
+	game.key('Space', true);
+	expect(game.select()).toBe(GLASS);
 });

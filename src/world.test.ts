@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { collides, FLOWER, HEIGHT, idx, lift, move, SIZE, solid, STONE, target, type Vec3, WATER } from './world.ts';
+import { collides, FLOWER, GLASS, HEIGHT, idx, lift, move, SIZE, solid, STONE, target, type Vec3, WATER } from './world.ts';
 
 /** A 16 MiB world with stone for every cell below `floor`. */
 const flat = (floor: number) => new Uint8Array(1 << 24).fill(STONE, 0, idx(0, floor, 0));
@@ -29,6 +29,14 @@ describe('idx and solid', () => {
 		expect(solid(V, 7, 9, 7)).toBe(true);
 		expect(solid(V, 7, HEIGHT, 7)).toBe(false);
 		expect(solid(V, 7, 20, 7)).toBe(false);
+	});
+
+	test('glass blocks the body and the target ray', () => {
+		const V = flat(10);
+		V[idx(7, 12, 7)] = GLASS;
+		expect(solid(V, 7, 12, 7)).toBe(true);
+		expect(collides(V, [7.5, 12, 7.5])).toBe(true);
+		expect(target(V, [7.5, 12.5, 4.5], [0, 0, 1])).toEqual([idx(7, 12, 7), idx(7, 12, 6)]);
 	});
 });
 
