@@ -1,6 +1,6 @@
 /**
  * Picks the minifier setup that gives the smallest packed page. Every variant is ranked by its libdeflate length (a fast proxy),
- * the best two are then packed for real. `bun scripts/minify.ts <wrapped.js>` prints the ranking.
+ * the best two are then packed for real. `bun run build --rank` prints the ranking.
  */
 import { minify, type MinifyOptions } from 'terser';
 import { pack, type Packed } from './pack.ts';
@@ -8,7 +8,7 @@ import { pack, type Packed } from './pack.ts';
 type Compress = Exclude<NonNullable<MinifyOptions['compress']>, boolean>;
 
 /** The compress options of the current build, every variant overrides a few of them. */
-export const BASE: Compress = { booleans_as_integers: true, keep_fargs: false, passes: 3, pure_getters: true, unsafe: true, unsafe_arrows: true, unsafe_comps: true, unsafe_math: true, unsafe_methods: true };
+const BASE: Compress = { booleans_as_integers: true, keep_fargs: false, passes: 3, pure_getters: true, unsafe: true, unsafe_arrows: true, unsafe_comps: true, unsafe_math: true, unsafe_methods: true };
 
 const terser = (compress: Compress | false, mangle: MinifyOptions['mangle'] = {}, format: MinifyOptions['format'] = {}): MinifyOptions => ({
 	compress,
@@ -20,7 +20,7 @@ const terser = (compress: Compress | false, mangle: MinifyOptions['mangle'] = {}
 });
 
 const unsafeSet = { unsafe_proto: true, unsafe_regexp: true, unsafe_symbols: true, unsafe_undefined: true };
-export const TERSER: Record<string, MinifyOptions> = {
+const TERSER: Record<string, MinifyOptions> = {
 	base: terser(BASE),
 	'inline-1': terser({ ...BASE, inline: 1 }),
 	'inline-2': terser({ ...BASE, inline: 2 }),
@@ -55,7 +55,7 @@ export const TERSER: Record<string, MinifyOptions> = {
 const bun = async (js: string) =>
 	(await (await Bun.build({ entrypoints: ['/in.js'], files: { '/in.js': js }, minify: true, target: 'browser' })).outputs[0]!.text()).trim();
 
-export interface Variant {
+interface Variant {
 	deflated: number;
 	js: string;
 	name: string;
@@ -65,7 +65,7 @@ const deflated = (s: string) => Bun.deflateSync(s, { level: 12, library: 'libdef
 const run = async (js: string, options: MinifyOptions) => (await minify(js, options)).code!;
 
 /** Every variant of `wrapped` (the bundle inside its `(async()=>{...})()` wrapper), smallest deflate first. */
-export async function variants(wrapped: string): Promise<Variant[]> {
+async function variants(wrapped: string): Promise<Variant[]> {
 	const out = new Map<string, string>();
 	await Promise.all(Object.entries(TERSER).map(async ([name, options]) => out.set(`terser ${name}`, await run(wrapped, options))));
 	const bunned = await bun(wrapped);
@@ -78,7 +78,7 @@ export async function variants(wrapped: string): Promise<Variant[]> {
 }
 
 /** CR-free streams can still break the comment, a trailing byte changes the stream until one fits. */
-export async function packFit(js: string): Promise<Packed> {
+async function packFit(js: string): Promise<Packed> {
 	for (const suffix of ['', ';', ' ', ';;']) {
 		try {
 			return await pack(js + suffix);
@@ -93,12 +93,4 @@ export async function bestMinify(wrapped: string) {
 	const finalists = await Promise.all(ranked.slice(0, 2).map(async v => ({ ...v, packed: await packFit(v.js) })));
 	const [best] = finalists.sort((a, b) => a.packed.html.length - b.packed.html.length);
 	return { best: best!, finalists, ranked };
-}
-
-if (import.meta.main) {
-	const input = Bun.argv[2];
-	if (!input) throw new Error('usage: bun scripts/minify.ts <wrapped.js>');
-	const { finalists, ranked } = await bestMinify(await Bun.file(input).text());
-	for (const v of ranked) console.log(`${String(v.deflated).padStart(5)} deflate, ${String(v.js.length).padStart(5)} B  ${v.name}`);
-	for (const f of finalists) console.log(`pack ${f.name}: ${f.packed.codec}, deflate ${f.packed.deflated} B, page ${f.packed.html.length} B`);
 }

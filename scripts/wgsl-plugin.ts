@@ -1,10 +1,11 @@
-/** Dev server plugin (`[serve.static] plugins` in `bunfig.toml`): serves `src/*.wgsl` as readable text with the constants substituted. */
-import { basename } from 'node:path';
 import { shader } from './shader.ts';
 
-export default {
+/** Loads `.wgsl` imports through `shader()`: `build.ts` passes `prod`, the default export (readable WGSL) is the dev server plugin of `bunfig.toml`. */
+export const wgslPlugin = (prod: boolean): Bun.BunPlugin => ({
 	name: 'wgsl',
 	setup(b) {
-		b.onLoad({ filter: /\.wgsl$/ }, async ({ path }) => ({ contents: await shader(basename(path), false), loader: 'text' }));
+		b.onLoad({ filter: /\.wgsl$/ }, async ({ path }) => ({ contents: await shader(path, prod), loader: 'text' }));
 	},
-} satisfies Bun.BunPlugin;
+});
+
+export default wgslPlugin(false);
