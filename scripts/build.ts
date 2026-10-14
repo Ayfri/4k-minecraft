@@ -1,4 +1,4 @@
-/** `--dev` writes `dev.html`, else the packed `index.html`. `--out <dir>` picks the folder, `--rank` lists the minifiers, `--verbose` all. */
+/** `--dev` writes `dev.html` (game plus `src/dev` bot), else the packed `index.html`. `--out <dir>` picks the folder, `--rank` lists the minifiers, `--verbose` all. */
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { bestMinify } from './minify.ts';
@@ -32,9 +32,12 @@ export async function build(dev: boolean, { out = `${root}/dist`, rank = false, 
 	out = resolve(out);
 	const { code, inputs } = await bundle(dev);
 	if (dev) {
-		await Bun.write(`${out}/dev.html`, `<meta charset=utf-8><canvas id=c></canvas><script type=module>${code}</script>`);
+		/** The bot is its own entry: `main.ts` never imports `src/dev`, so the prod graph cannot reach it. */
+		const bot = await Bun.build({ entrypoints: [`${root}/src/dev/index.ts`], format: 'esm', target: 'browser' });
+		await Bun.write(`${out}/dev.html`, `<meta charset=utf-8><canvas id=c></canvas><script type=module>${code}</script><script type=module>${(await bot.outputs[0]!.text()).trim()}</script>`);
 		return `dev build ${new Date().toLocaleTimeString()}`;
 	}
+	if (Object.entries(inputs).some(([path, { bytesInOutput }]) => /src[\\/]dev[\\/]/.test(path) && bytesInOutput)) throw new Error('DEV module leaked into the build');
 	const { best, ranked } = await bestMinify(`(async()=>{${code}})()`);
 	if (/dbg|console/.test(best.js)) throw new Error('DEV code leaked into the minified build');
 	const { codec, deflated, html } = best.packed;

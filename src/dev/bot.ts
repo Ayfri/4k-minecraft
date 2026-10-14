@@ -31,6 +31,9 @@ export interface Check {
 	missing: [x: number, y: number, z: number, want: number, got: number][];
 }
 
+/** Frames a jump may take: 0.6 s of air time is about 110 frames at the 180 fps of a headless Chrome. */
+const JUMP = 240;
+
 /** Plays the game through its own controls: key events for walking, `dbg.A` for the view, `dbg.act` on the game's own `hit`. */
 export class Bot {
 	/** Settles when `start` finishes, for tests (a page `evaluate` must never await it). */
@@ -104,10 +107,10 @@ export class Bot {
 	}
 
 	/** Releases every key and waits until the player stands still on an integer height. */
-	private async settle() {
+	private async settle(frames = 90) {
 		const { P, v } = this.game;
 		this.stop();
-		for (let i = 0; i < 90; i++) {
+		for (let i = 0; i < frames; i++) {
 			await this.step();
 			if (!v[0] && !v[2] && Number.isInteger(P[1])) return true;
 		}
@@ -201,11 +204,12 @@ export class Bot {
 			const feet = P[1];
 			const [below, here] = [idx(P[0], feet - 1, P[2]), idx(P[0], feet, P[2])];
 			let placed = false;
-			for (let f = 0; f < 90 && !placed; f++) {
+			for (let f = 0; f < JUMP && !placed; f++) {
 				this.hold('Space');
 				await this.step();
 				const hit = this.game.hit;
-				if (P[1] > feet + 1.05 && hit?.[0] == below && hit[1] == here) {
+				/** A plant in the feet cell stops the ray itself, and placing over it replaces it. */
+				if (P[1] > feet + 1.05 && hit && ((hit[0] == below && hit[1] == here) || hit[0] == here)) {
 					this.game.act(2);
 					placed = V[here] == DIRT;
 				}
@@ -215,7 +219,7 @@ export class Bot {
 			this.scaffold.push(here);
 			this.spent.push(here);
 			this.stats.scaffold++;
-			for (let f = 0; f < 90 && P[1] != feet + 1; f++) await this.step();
+			for (let f = 0; f < JUMP && P[1] != feet + 1; f++) await this.step();
 		}
 		return true;
 	}
@@ -231,7 +235,7 @@ export class Bot {
 				if (this.game.hit?.[0] != top) this.fail(`descend: not standing on ${cellOf(top)}`);
 				else this.game.act(0);
 			}
-			for (let f = 0; f < 90 && !(Number.isInteger(P[1]) && !this.game.v[1]); f++) await this.step();
+			for (let f = 0; f < JUMP && !(Number.isInteger(P[1]) && !this.game.v[1]); f++) await this.step();
 		}
 	}
 
@@ -298,6 +302,8 @@ export class Bot {
 		this.blueprint = bp;
 		this.origin = origin;
 		const centre: [number, number] = [origin[0] + (bp.size[0] >> 1), origin[2] + (bp.size[2] >> 1)];
+		/** The page spawns the player in the air, the fall takes up to a few hundred frames. */
+		await this.settle(600);
 		const map = explore(V, P, Math.max(24, Math.ceil(Math.hypot(wrap(centre[0] - P[0]), wrap(centre[1] - P[2])) + 16)));
 		let near: number | undefined;
 		for (const [k, [cost]] of map) {

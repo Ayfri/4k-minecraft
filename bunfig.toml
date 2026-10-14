@@ -6,5 +6,5 @@ silent = true
 
 [test]
 coverageReporter = ["text"]
-pathIgnorePatterns = ["**/*.fuzz.test.ts"]
+pathIgnorePatterns = ["**/*.fuzz.test.ts", "**/*.bot.test.ts"]
 timeout = 30000
