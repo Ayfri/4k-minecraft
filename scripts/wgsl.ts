@@ -11,10 +11,7 @@ export const minifyWgsl = (s: string) =>
 const SHORT_RESERVED = new Set(['as', 'do', 'fn', 'if', 'in', 'of']);
 const LETTERS = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 
-/**
- * Renames the declared multi-letter names (functions, `let`/`var`/`const`, structs, parameters) of minified WGSL to the shortest free
- * ones, most used first. A name that is ever read after a `.` (struct member, swizzle) keeps its spelling.
- */
+/** Renames declared multi-letter names to the shortest free ones, most used first, except names read after a `.` (members, swizzles) and builtin arguments. */
 export function renameWgsl(s: string) {
 	const tokens = s.match(/(?<![.\w])\w+/g)!;
 	const taken = new Set(s.match(/\w+/g));

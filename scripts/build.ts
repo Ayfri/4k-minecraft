@@ -1,7 +1,4 @@
-/**
- * Bundles `src/main.ts`. `--dev` writes the readable `dist/dev.html` (DEV hooks on), the default writes the packed `dist/index.html`
- * and prints its size. `--rank` also lists every minifier variant by deflate size.
- */
+/** `--dev` writes the readable `dist/dev.html`, the default the packed `dist/index.html`, `--rank` lists every minifier variant. */
 import { bestMinify } from './minify.ts';
 import { wgslPlugin } from './wgsl-plugin.ts';
 

@@ -1,7 +1,4 @@
-/**
- * Builds, opens the page in headless Chrome and fails on console errors. Extra arguments are the CLI of `scripts/webview.ts`:
- * `bun run verify -- --dev --eval "dbg.bench()" --shot out.png`. Without `--shot` the screenshot lands in the temp folder.
- */
+/** Builds, opens the page in headless Chrome and fails on console errors, extra arguments go to `webview.ts`: `bun run verify -- --dev --eval "dbg.bench()"`. */
 import { tmpdir } from 'node:os';
 import { build } from './build.ts';
 import { inspect } from './webview.ts';

@@ -1,8 +1,4 @@
-/**
- * Page driver on `Bun.WebView` (Chrome backend), shared by `verify.ts` and the e2e test. Every `Page` gets its own Chrome and profile
- * directory, both gone after `await using`. CLI: `bun scripts/webview.ts dist/index.html --wait 3000 --shot out.png --eval "dbg.bench()"`
- * with `--keys "w:500,space:100"`, `--size 1280x720` and `--headed`, it prints `{ url, eval, shot, console }` as JSON.
- */
+/** Page driver on `Bun.WebView`, one Chrome and profile per `Page`. CLI: `bun scripts/webview.ts <file> --wait ms --shot f.png --eval expr --keys "w:500" --size 1280x720 --headed`. */
 import { existsSync, rmSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -63,7 +59,7 @@ export class Page implements AsyncDisposable {
 		if (!path) throw new Error('Chrome not found');
 		await mkdir(PROFILES, { recursive: true });
 		const profile = await mkdtemp(`${PROFILES}/chrome-`);
-		/** A Chrome spawned by the backend always gets `--disable-gpu` (no WebGPU adapter), so Chrome is launched here and the backend only drives it. */
+		/** The backend's own Chrome gets `--disable-gpu` (no WebGPU adapter), so it is launched here and the backend only drives it. */
 		let chrome: Bun.Subprocess;
 		try {
 			chrome = Bun.spawn(

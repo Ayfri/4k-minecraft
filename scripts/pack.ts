@@ -1,9 +1,4 @@
-/**
- * Self-extracting HTML packer. The page is decoded as windows-1252 (`<meta charset=l1>`), so the raw deflate stream sits
- * in an HTML comment and every byte reads back as one character: NUL becomes U+FFFD and 0x80-0x9F become the 1252
- * punctuation, both undone through a lookup string. CR is the only byte the parser loses (normalized to LF), it is
- * escaped as `E1` and the escape byte itself as `E0`, with `E` the rarest safe byte of the stream.
- */
+/** The raw deflate stream sits in an HTML comment read as windows-1252, only CR is lost to the parser: escaped as `E1`, `E` itself as `E0` (`E` = rarest safe byte). */
 import { zopfli } from './lib/zopfli.ts';
 
 /** The bytes the decoder finds by `indexOf` in its lookup string, NUL first then 0x80-0x9F. */
@@ -42,10 +37,7 @@ export function encode(stream: Uint8Array): { data: Uint8Array; escape: number }
 	return text.includes('--') || /^-?>|-$/.test(text) ? undefined : { data, escape };
 }
 
-/**
- * Packs `js` into a page that inflates and evaluates it. The comment and the decoder sit inside `<canvas id=c>` as
- * fallback content, which never renders, so the decoder reads its payload as `c.firstChild` and the game gets `c`.
- */
+/** Packs `js` into a page that inflates and evals it, the comment sits in the `<canvas id=c>` fallback content so the decoder reads `c.firstChild`. */
 export async function pack(js: string): Promise<Packed> {
 	const input = new TextEncoder().encode(js);
 	let best: { codec: string; encoded: NonNullable<ReturnType<typeof encode>>; stream: Uint8Array } | undefined;
