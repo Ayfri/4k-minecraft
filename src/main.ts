@@ -5,7 +5,7 @@ import { collides, idx, move, target, WATER, type Vec3 } from './world.ts';
 const P: Vec3 = [280.5, 64, 280.5];
 const v: Vec3 = [0, 0, 0];
 const A: [number, number] = [-2.4, -.25];
-/** Seconds added to the page clock, set by `dbg.time`. */
+/** Milliseconds added to the page clock, set by `dbg.time`. */
 let clock = 0;
 const keys: Record<string, boolean> = {};
 const key = (code: string) => +!!keys[code];
@@ -79,7 +79,7 @@ const act = (button: number) => {
 	}
 };
 
-onkeydown = onkeyup = e => (keys[e.code] = e.type == 'keydown');
+onkeydown = onkeyup = e => (keys[e.code] = e.type < 'keyu');
 onmousedown = e => (document.pointerLockElement ? act(e.button) : c.requestPointerLock({ unadjustedMovement: true }));
 oncontextmenu = () => !1;
 onmousemove = e => {
@@ -95,14 +95,14 @@ const frame = (now: number) => {
 	last = now;
 	const [sy, sp, cy, cp] = [Math.sin(A[0]), Math.sin(A[1]), Math.cos(A[0]), Math.cos(A[1])];
 	const [fw, rt] = [key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA')];
-	const swim = V[idx(Math.floor(P[0]), Math.floor(P[1] + .5), Math.floor(P[2]))] == WATER;
+	const swim = V[idx(P[0], P[1] + .5, P[2])] == WATER;
 	v[0] = (fw * sy + rt * cy) * 4.3;
 	v[2] = (fw * cy - rt * sy) * 4.3;
 	v[1] = swim ? (key('Space') ? 3 : Math.max(v[1] - 8.4 * dt, -2)) : key('Space') && ground ? 8.5 : Math.max(v[1] - 28 * dt, -30);
 	ground = move(V, P, v, dt);
 	const eye: Vec3 = [P[0], P[1] + 1.62, P[2]];
 	hit = target(V, eye, [sy * cp, sp, cy * cp]);
-	upload(now / 1e3 + (DEV ? clock : 0), eye);
+	upload((DEV ? now + clock : now) / 1e3, eye);
 	queue.submit([draw()]);
 	requestAnimationFrame(frame);
 };
@@ -118,6 +118,6 @@ if (DEV) {
 		await queue.onSubmittedWorkDone();
 		return (performance.now() - start) / n;
 	};
-	const time = (seconds: number) => (clock = seconds - performance.now() / 1e3);
+	const time = (seconds: number) => (clock = seconds * 1e3 - performance.now());
 	Object.assign(globalThis, { dbg: { A, P, V, act, bench, time, v } });
 }

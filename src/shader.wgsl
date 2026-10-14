@@ -47,7 +47,7 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
 }
 
 @vertex fn v(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
-  return vec4f(vec2f(f32(i & 1), f32(i >> 1)) * 4 - 1, 0, 1);
+  return vec4f(vec2f(vec2u(i & 1, i >> 1)) * 4 - 1, 0, 1);
 }
 
 /** The sun direction and the daylight in [0, 1], set once per pixel by the fragment shader. */
@@ -64,13 +64,13 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   var k = b;
   let q = H(vec3u(t, b));
   var m = 1 - .3 * q;
-  let a = abs(vec2f(t) - 7.5);
+  let a = abs(vec2i(t) * 2 - 15);
   if b == GRASS {
-    if n.y < 0 || (n.y == 0 && t.y > (((t.x * t.x * 3 + t.x * 81) >> 2) & 3) + 2) { k = DIRT; }
+    if n.y < 0 || (n.y == 0 && t.y > u32(H(vec3u(t.x, 7, b)) * 4) + 2) { k = DIRT; }
   } else if b == LOG {
     if n.y == 0 { m *= .7 + .3 * H(vec3u(t.x, 7, b)); } else {
       k = PLANKS;
-      m *= 1 - .25 * f32(u32(max(a.x, a.y)) / 2 % 2);
+      m *= 1 - .25 * f32(max(a.x, a.y) / 4 % 2);
     }
   } else if b == LEAVES {
     if q < .3 { m *= .5; }
@@ -83,12 +83,13 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
 }
 
 @fragment fn f(@builtin(position) q: vec4f) -> @location(0) vec4f {
-  let fw = vec3f(sin(U.a.x) * cos(U.a.y), sin(U.a.y), cos(U.a.x) * cos(U.a.y));
-  let r = vec3f(cos(U.a.x), 0, -sin(U.a.x));
-  var uv = (2 * q.xy - U.r) / U.r.y;
-  uv.y = -uv.y;
-  let d = normalize(fw * 1.4 + r * uv.x + cross(fw, r) * uv.y);
-  let w = U.t * 6.2832 / DAY + .3;
+  let s = sin(U.a);
+  let c = cos(U.a);
+  let fw = vec3f(s.x * c.y, s.y, c.x * c.y);
+  let r = vec3f(c.x, 0, -s.x);
+  let uv = (2 * q.xy - U.r) / U.r.y;
+  let d = normalize(fw * 1.4 + r * uv.x + cross(r, fw) * uv.y);
+  let w = U.t * .01047 + .3;
   L = normalize(vec3f(cos(w), sin(w), .4));
   D = saturate(L.y * 2 + .4);
   let t = M(U.p, d, 0, 256);
@@ -102,7 +103,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
     if r > 1 { u.x = 15 - u.x; }
   }
   let e = abs(fract(P) - .5) * (1 - N);
-  let ol = f32(I(C)) == U.h && max(e.x, max(e.y, e.z)) > .46;
+  let ol = f32(I(C)) == U.h && any(e > vec3f(.46));
   let lv = L * sign(L.y);
   let li = vec3f(.1, .12, .22) + vec3f(.65, .5, .3) * saturate(L.y * 5);
   let al = X(K, u, n);
@@ -113,8 +114,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
     if B(o) > WATER { ao += 1.5 - distance(P, vec3f(o) + .5); }
   }
   let am = (vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3);
-  var sh = max(dot(n, lv), 0);
-  if sh > 0 && M(P + n * .01, lv, WATER, 64) < 1e9 { sh = 0; }
+  let sh = max(dot(n, lv), 0) * step(1e9, M(P + n * .01, lv, WATER, 64));
   var col = al * (li * sh + am);
   if ol { col = 1 - col; }
   return vec4f(sqrt(mix(col, S(d), smoothstep(40, 120, t))), 1);
@@ -122,11 +122,12 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
 
 /** Value noise with lattice cells of `c` blocks, wrapped so that it tiles the world when `c` divides 512 (and 64 on y). */
 fn Q(p: vec3f, c: f32) -> f32 {
+  var f = fract(p / c);
   let g = floor(p / c);
-  let f = smoothstep(vec3f(), vec3f(1), p / c - g);
+  f *= f * (3 - 2 * f);
   var s = 0.;
   for (var i = 0u; i < 8; i++) {
-    let o = vec3f(vec3u(i, i >> 1, i >> 2) & vec3u(1));
+    let o = vec3f(vec3u(i, i / 2, i / 4) % 2);
     let w = mix(1 - f, f, o);
     s += w.x * w.y * w.z * H(vec3u((g + o) * c));
   }
@@ -134,9 +135,9 @@ fn Q(p: vec3f, c: f32) -> f32 {
 }
 
 /** Height of the terrain column at x, z. */
-fn T(x: f32, z: f32) -> f32 {
+fn T(x: u32, z: u32) -> f32 {
   var e = 0.;
-  for (var c = 128.; c > 8; c *= .5) { e += Q(vec3f(x, 0, z), c) * c / 256; }
+  for (var c = 128.; c > 8; c *= .5) { e += Q(vec3f(vec3u(x, 0, z)), c) * c / 256; }
   return floor(clamp(SEA + (e - .4) * 90, 2, 60));
 }
 
@@ -144,16 +145,17 @@ fn T(x: f32, z: f32) -> f32 {
   let z = u.x >> 7;
   for (var k = 0u; k < 4; k++) {
     let x = (u.x & 127) * 4 + k;
-    let h = T(f32(x), f32(z));
-    let t = vec2u(x, z) >> vec2u(3);
+    let h = T(x, z);
+    let t = vec2u(x, z) / 8;
     let r = H(vec3u(t.x, 99, t.y));
     let tx = t.x * 8 + 2 + u32(r * 40) % 4;
     let tz = t.y * 8 + 2 + u32(r * 400) % 4;
-    let th = T(f32(tx), f32(tz));
-    let tree = r < .3 && th > SEA + 1 && th < 46;
+    let th = T(tx, tz);
+    let tree = r < .3 && th > SHORE && th < 46;
     for (var y = 0u; y < 64; y++) {
-      let p = vec3f(f32(x), f32(y), f32(z));
-      let q = H(vec3u(x, y, z));
+      let c = vec3u(x, y, z);
+      let p = vec3f(c);
+      let q = H(c);
       let d = p - vec3f(f32(tx), th + 4, f32(tz));
       var b = 0u;
       if p.y > h {
@@ -161,7 +163,7 @@ fn T(x: f32, z: f32) -> f32 {
         else if tree && abs(d.y + .5) < 2 && dot(d, d) < 5.5 - q { b = LEAVES; }
         else if p.y <= SEA { b = WATER; }
       } else {
-        let beach = h <= SEA + 1;
+        let beach = h <= SHORE;
         b = GRASS;
         if h > 52 + q * 6 { b = SNOW; }
         if p.y < h { b = DIRT; }
