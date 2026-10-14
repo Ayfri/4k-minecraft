@@ -1,4 +1,4 @@
-/** Page driver on `Bun.WebView`, one Chrome and profile per `Page`, CLI: `<file> --wait --shot --eval --keys --size --headed`. */
+/** Page driver on `Bun.WebView`, one Chrome per `Page`, CLI: `<file> --wait --shot --eval --eval-file --keys --size --headed --verbose`. */
 import { existsSync, rmSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -128,33 +128,63 @@ export class Page implements AsyncDisposable {
 		}
 	}
 
+	/** Evaluates `code`, then waits for two rendered frames and a 100 ms timer so a screenshot shows its effect. */
+	async run(code: string) {
+		const value = await this.view.evaluate(code);
+		await this.view.evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(r,100))))');
+		return value;
+	}
+
 	[Symbol.asyncDispose]() {
 		return release(this.chrome, this.profile, this.view);
 	}
 }
 
-interface Report {
+export interface Report {
 	console: string[];
 	eval?: unknown;
 	shot?: string;
 	url: string;
 }
 
-/** Runs the CLI arguments: open, wait, keys, eval, screenshot. */
+/** The console lines that fail a page check: exceptions, errors and anything WebGPU or WGSL. */
+export const problems = (report: Report) => report.console.filter(l => /^\[(exception|error)\]|WebGPU|WGSL/.test(l));
+
+/** One line (console lines, problems, screenshot), then the eval value and the problems, or the whole JSON report with `verbose`. */
+export function summarize(report: Report, verbose: boolean) {
+	if (verbose) return JSON.stringify(report, null, 1);
+	const bad = problems(report);
+	const lines = [`${report.url}: ${report.console.length} console lines, ${bad.length} problems${report.shot ? `, shot ${report.shot}` : ''}`];
+	if ('eval' in report) lines.push(`eval: ${JSON.stringify(report.eval)}`);
+	return lines.concat(bad).join('\n');
+}
+
+/** Runs the CLI arguments: open, wait, keys, eval (`--eval` or `--eval-file`, settled), screenshot. */
 export async function inspect(argv: string[]): Promise<Report> {
 	const { positionals, values } = parseArgs({
 		allowPositionals: true,
 		args: argv,
-		options: { eval: { type: 'string' }, headed: { type: 'boolean', default: false }, keys: { type: 'string' }, shot: { type: 'string' }, size: { type: 'string', default: '1280x720' }, wait: { type: 'string', default: '2000' } },
+		options: {
+			eval: { type: 'string' },
+			'eval-file': { type: 'string' },
+			headed: { type: 'boolean', default: false },
+			keys: { type: 'string' },
+			shot: { type: 'string' },
+			size: { type: 'string', default: '1280x720' },
+			verbose: { type: 'boolean', default: false },
+			wait: { type: 'string', default: '2000' },
+		},
 	});
 	const target = positionals[0];
-	if (!target) throw new Error('usage: bun scripts/webview.ts <file-or-url> [--wait ms] [--eval expr] [--shot file.png] [--keys "w:500,space:100"] [--size 1280x720] [--headed]');
+	if (!target) throw new Error('usage: bun scripts/webview.ts <file-or-url> [--wait ms] [--eval expr | --eval-file statements.js] [--shot file.png] [--keys "w:500,space:100"] [--size 1280x720] [--headed] [--verbose]');
 	const [width, height] = values.size.split('x').map(Number) as [number, number];
 	await using page = await Page.open(target, { headed: values.headed, height, width });
 	await Bun.sleep(Number(values.wait));
 	if (values.keys) await page.keys(values.keys);
 	const report: Report = { console: page.logs, url: page.view.url };
-	if (values.eval) report.eval = await page.view.evaluate(values.eval);
+	/** A file holds statements, `evaluate` takes an expression: the async wrapper allows `await` and `return value`. */
+	const code = values.eval ?? (values['eval-file'] ? `(async()=>{${await Bun.file(values['eval-file']).text()}})()` : undefined);
+	if (code) report.eval = await page.run(code);
 	if (values.shot) {
 		await Bun.write(values.shot, await page.view.screenshot({ encoding: 'buffer' }));
 		report.shot = values.shot;
@@ -162,4 +192,4 @@ export async function inspect(argv: string[]): Promise<Report> {
 	return report;
 }
 
-if (import.meta.main) console.log(JSON.stringify(await inspect(Bun.argv.slice(2)), null, 1));
+if (import.meta.main) console.log(summarize(await inspect(Bun.argv.slice(2)), Bun.argv.includes('--verbose')));
