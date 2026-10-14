@@ -8,17 +8,22 @@ var<private> K: u32;
 
 const COLORS = array(0u, 0x35c, 0x5a3, 0x864, 0x888, 0xed9, 0x753, 0x373, 0xb85, 0xa43, 0xfff, 0x333, 0xc98, 0x5ee);
 
-fn H(p: vec3u) -> f32 {
+/** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
+fn H(c: vec3u) -> f32 {
+  let p = c & vec3u(MASK, TOP, MASK);
   var h = ((p.x * 0x45d9f3b + p.y) * 0x45d9f3b + p.z) * 0x45d9f3b + u32(U.s);
   h ^= h >> 16;
   h *= 0x45d9f3b;
   return f32(h ^ (h >> 16)) * 2.3e-10;
 }
 
+/** Voxel index of a cell, one byte per cell. */
+fn I(c: vec3i) -> u32 { return u32(c.x & MASK) | (u32(c.z & MASK) << 9) | (u32(c.y) << 18); }
+
 /** The block at a cell: stone below the world, air above it, x and z wrap. */
 fn B(c: vec3i) -> u32 {
   if u32(c.y) > TOP { return select(0u, STONE, c.y < 0); }
-  let i = u32(c.x & MASK) | (u32(c.z & MASK) << 9) | (u32(c.y) << 18);
+  let i = I(c);
   return extractBits(W[i >> 2], (i & 3) * 8, 8);
 }
 
@@ -45,19 +50,74 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   return vec4f(vec2f(f32(i & 1), f32(i >> 1)) * 4 - 1, 0, 1);
 }
 
+/** The sun direction and the daylight in [0, 1], set once per pixel by the fragment shader. */
+var<private> L: vec3f;
+var<private> D: f32;
+
+/** Sky gradient without sun or stars, also the colour distant terrain fades to. */
+fn S(d: vec3f) -> vec3f {
+  return mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .03;
+}
+
+/** Colour of texel `t` (16x16 per face) of block `b` seen from the side `n`, the same tile for every block of a type. */
+fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
+  var k = b;
+  let q = H(vec3u(t, b));
+  var m = 1 - .3 * q;
+  let a = abs(vec2f(t) - 7.5);
+  if b == GRASS {
+    if n.y < 0 || (n.y == 0 && t.y > (((t.x * t.x * 3 + t.x * 81) >> 2) & 3) + 2) { k = DIRT; }
+  } else if b == LOG {
+    if n.y == 0 { m *= .7 + .3 * H(vec3u(t.x, 7, b)); } else {
+      k = PLANKS;
+      m *= 1 - .25 * f32(u32(max(a.x, a.y)) / 2 % 2);
+    }
+  } else if b == LEAVES {
+    if q < .3 { m *= .5; }
+  } else if b == PLANKS {
+    if t.y % 4 == 0 { m *= .7; }
+  } else if b == BRICKS {
+    if t.y % 4 == 0 || (t.x + t.y / 4 % 2 * 4) % 8 == 0 { return vec3f(.7) * m; }
+  } else if b > SNOW && q < .75 { k = STONE; }
+  return vec3f((vec3u(COLORS[k]) >> vec3u(8, 4, 0)) & vec3u(15)) / 15 * m;
+}
+
 @fragment fn f(@builtin(position) q: vec4f) -> @location(0) vec4f {
   let fw = vec3f(sin(U.a.x) * cos(U.a.y), sin(U.a.y), cos(U.a.x) * cos(U.a.y));
   let r = vec3f(cos(U.a.x), 0, -sin(U.a.x));
   var uv = (2 * q.xy - U.r) / U.r.y;
   uv.y = -uv.y;
   let d = normalize(fw * 1.4 + r * uv.x + cross(fw, r) * uv.y);
+  let w = U.t * 6.2832 / DAY + .3;
+  L = normalize(vec3f(cos(w), sin(w), .4));
+  D = saturate(L.y * 2 + .4);
   let t = M(U.p, d, 0, 256);
-  var albedo = vec3f((vec3u(COLORS[K]) >> vec3u(8, 4, 0)) & vec3u(15)) / 15 * dot(N, vec3f(.6, 1, .8));
-  if K > 1 && f32(u32(C.x & MASK) | (u32(C.z & MASK) << 9) | (u32(C.y) << 18)) == U.h {
-    let e = abs(fract(U.p + d * t) - .5) * (1 - N);
-    if max(e.x, max(e.y, e.z)) > .46 { albedo = 1 - albedo; }
+  if K == 0 { return vec4f(sqrt(S(d) + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000)), 1); }
+  let P = U.p + d * t;
+  let n = -N * sign(d);
+  var u = vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
+  if n.y > 0 {
+    let r = u32(H(vec3u(C.zyx)) * 4);
+    if (r & 1) > 0 { u = u.yx; }
+    if r > 1 { u.x = 15 - u.x; }
   }
-  return vec4f(sqrt(mix(albedo, vec3f(.5, .7, 1), smoothstep(40, 120, t))), 1);
+  let e = abs(fract(P) - .5) * (1 - N);
+  let ol = f32(I(C)) == U.h && max(e.x, max(e.y, e.z)) > .46;
+  let lv = L * sign(L.y);
+  let li = vec3f(.1, .12, .22) + vec3f(.65, .5, .3) * saturate(L.y * 5);
+  let al = X(K, u, n);
+  var ao = 0.;
+  let a = C + vec3i(n);
+  for (var i = 0; i < 4; i++) {
+    let o = a + vec3i(select(n.zxy, n.yzx, i > 1)) * (i % 2 * 2 - 1);
+    if B(o) > WATER { ao += 1.5 - distance(P, vec3f(o) + .5); }
+  }
+  let am = (vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3);
+  var sh = max(dot(n, lv), 0);
+  if sh > 0 && M(P + n * .01, lv, WATER, 64) < 1e9 { sh = 0; }
+  var col = al * (li * sh + am);
+  if ol { col = 1 - col; }
+  return vec4f(sqrt(mix(col, S(d), smoothstep(40, 120, t))), 1);
 }
 
 /** Value noise with lattice cells of `c` blocks, wrapped so that it tiles the world when `c` divides 512 (and 64 on y). */
@@ -68,7 +128,7 @@ fn Q(p: vec3f, c: f32) -> f32 {
   for (var i = 0u; i < 8; i++) {
     let o = vec3f(vec3u(i, i >> 1, i >> 2) & vec3u(1));
     let w = mix(1 - f, f, o);
-    s += w.x * w.y * w.z * H(vec3u((g + o) * c) & vec3u(MASK, TOP, MASK));
+    s += w.x * w.y * w.z * H(vec3u((g + o) * c));
   }
   return s;
 }

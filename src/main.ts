@@ -5,6 +5,8 @@ import { collides, idx, move, target, WATER, type Vec3 } from './world.ts';
 const P: Vec3 = [280.5, 64, 280.5];
 const v: Vec3 = [0, 0, 0];
 const A: [number, number] = [-2.4, -.25];
+/** Seconds added to the page clock, set by `dbg.time`. */
+let clock = 0;
 const keys: Record<string, boolean> = {};
 const key = (code: string) => +!!keys[code];
 
@@ -100,7 +102,7 @@ const frame = (now: number) => {
 	ground = move(V, P, v, dt);
 	const eye: Vec3 = [P[0], P[1] + 1.62, P[2]];
 	hit = target(V, eye, [sy * cp, sp, cy * cp]);
-	upload(now / 1e3, eye);
+	upload(now / 1e3 + (DEV ? clock : 0), eye);
 	queue.submit([draw()]);
 	requestAnimationFrame(frame);
 };
@@ -116,5 +118,6 @@ if (DEV) {
 		await queue.onSubmittedWorkDone();
 		return (performance.now() - start) / n;
 	};
-	Object.assign(globalThis, { dbg: { A, P, V, act, bench, v } });
+	const time = (seconds: number) => (clock = seconds - performance.now() / 1e3);
+	Object.assign(globalThis, { dbg: { A, P, V, act, bench, time, v } });
 }
