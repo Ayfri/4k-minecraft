@@ -3,6 +3,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "bench": "bun scripts/bench.ts",
     "build": "bun scripts/build.ts",
     "check": "tsc",
     "dev": "bun scripts/serve.ts",
