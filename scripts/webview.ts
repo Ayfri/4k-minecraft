@@ -3,7 +3,7 @@
  * directory, both gone after `await using`. CLI: `bun scripts/webview.ts dist/index.html --wait 3000 --shot out.png --eval "dbg.bench()"`
  * with `--keys "w:500,space:100"`, `--size 1280x720` and `--headed`, it prints `{ url, eval, shot, console }` as JSON.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -22,13 +22,30 @@ interface PageOptions {
 
 const PROFILES = `${tmpdir()}/claude-temp/4k`;
 
+/** Chromes still running with their profile directory, ended by the exit and signal handlers when a hang or Ctrl+C skips `asyncDispose`. */
+const live = new Map<Bun.Subprocess, string>();
+
+/** `kill()` only ends the browser process, its children keep files of the profile locked for a while on Windows. */
+const killTree = (chrome: Bun.Subprocess) =>
+	process.platform === 'win32' ? Bun.spawnSync(['taskkill', '/F', '/T', '/PID', String(chrome.pid)], { stderr: 'ignore', stdout: 'ignore' }) : chrome.kill();
+
+process.once('exit', () => {
+	for (const [chrome, profile] of live) {
+		killTree(chrome);
+		Bun.sleepSync(500);
+		try {
+			rmSync(profile, { force: true, maxRetries: 20, recursive: true, retryDelay: 100 });
+		} catch {}
+	}
+});
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => process.exit(130));
+
 const release = async (chrome: Bun.Subprocess, profile: string, view?: Bun.WebView) => {
 	view?.close();
-	/** `kill()` only ends the browser process, its children keep files of the profile locked for a while on Windows. */
-	if (process.platform === 'win32') await Bun.spawn(['taskkill', '/F', '/T', '/PID', String(chrome.pid)], { stderr: 'ignore', stdout: 'ignore' }).exited;
-	else chrome.kill();
+	killTree(chrome);
 	await chrome.exited;
-	await rm(profile, { force: true, maxRetries: 20, recursive: true, retryDelay: 100 });
+	live.delete(chrome);
+	await rm(profile, { force: true, maxRetries: 20, recursive: true, retryDelay: 100 }).catch(e => console.error(`could not remove ${profile}: ${e}`));
 };
 
 export class Page implements AsyncDisposable {
@@ -47,21 +64,28 @@ export class Page implements AsyncDisposable {
 		await mkdir(PROFILES, { recursive: true });
 		const profile = await mkdtemp(`${PROFILES}/chrome-`);
 		/** A Chrome spawned by the backend always gets `--disable-gpu` (no WebGPU adapter), so Chrome is launched here and the backend only drives it. */
-		const chrome = Bun.spawn(
-			[
-				path,
-				'--remote-debugging-port=0',
-				`--user-data-dir=${profile}`,
-				'--disable-backgrounding-occluded-windows',
-				'--disable-renderer-backgrounding',
-				'--enable-unsafe-webgpu',
-				'--no-default-browser-check',
-				'--no-first-run',
-				...(headed ? [] : ['--headless=new']),
-				'about:blank',
-			],
-			{ stderr: 'ignore', stdout: 'ignore' },
-		);
+		let chrome: Bun.Subprocess;
+		try {
+			chrome = Bun.spawn(
+				[
+					path,
+					'--remote-debugging-port=0',
+					`--user-data-dir=${profile}`,
+					'--disable-backgrounding-occluded-windows',
+					'--disable-renderer-backgrounding',
+					'--enable-unsafe-webgpu',
+					'--no-default-browser-check',
+					'--no-first-run',
+					...(headed ? [] : ['--headless=new']),
+					'about:blank',
+				],
+				{ stderr: 'ignore', stdout: 'ignore' },
+			);
+		} catch (error) {
+			await rm(profile, { force: true, recursive: true });
+			throw error;
+		}
+		live.set(chrome, profile);
 		let opened: Bun.WebView | undefined;
 		try {
 			let ws = '';
