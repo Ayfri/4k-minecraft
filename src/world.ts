@@ -45,27 +45,27 @@ export const collides = (V: Uint8Array, p: Vec3) => {
 	return false;
 };
 
-/** Moves `p` by `v * dt` per axis, zeroing blocked velocity, wraps x and z, returns whether the feet landed (needs `dt <= .03`). */
+/** Moves `p` by `v * dt` per axis, zeroing blocked velocity, wraps x and z, returns the contact: 2 when the feet landed, 1 against a wall (`~a & 1`, a ceiling does not count), 0 otherwise (needs `dt <= .03`). */
 export const move = (V: Uint8Array, p: Vec3, v: Vec3, dt: number) => {
-	let ground = false;
+	let contact = 0;
 	for (const a of [0, 1, 2] as const) {
 		p[a] += v[a] * dt;
 		if (collides(V, p)) {
 			if (a == 1 && v[1] < 0) {
 				p[1] = Math.ceil(p[1]);
-				ground = true;
-			} else p[a] -= v[a] * dt;
+				contact = 2;
+			} else (p[a] -= v[a] * dt), (contact ||= ~a & 1);
 			v[a] = 0;
 		}
 		p[a] = (p[a] + SIZE) % SIZE;
 	}
-	return ground;
+	return contact;
 };
 
-/** Next vertical velocity: Space jumps from the ground or out of water (feet in a water cell), water sinks slowly, air falls fast. */
-export const lift = (V: Uint8Array, p: Vec3, vy: number, dt: number, jump: number, ground: boolean) => {
+/** Next vertical velocity: Space jumps from the ground, or in water (feet in a water cell) swims up slowly and jumps out against a wall, water sinks slowly, air falls fast. */
+export const lift = (V: Uint8Array, p: Vec3, vy: number, dt: number, jump: number, contact: number) => {
 	const swim = V[idx(...p)] == WATER;
-	return jump && (ground || swim) ? 8.5 : swim ? Math.max(vy - 8.4 * dt, -2) : Math.max(vy - 28 * dt, -30);
+	return swim ? (jump ? (contact ? 8.5 : 3) : Math.max(vy - 8.4 * dt, -2)) : jump && contact > 1 ? 8.5 : Math.max(vy - 28 * dt, -30);
 };
 
 /** Marches 6 blocks along `dir` from `eye`, returns the first solid or plant cell and the cell before it (-1 when the eye is inside). */

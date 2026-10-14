@@ -9,7 +9,7 @@ const DT = .03;
 const fall = (V: Uint8Array, p: Vec3, v: Vec3) => {
 	for (let i = 1; i < 200; i++) {
 		v[1] = Math.max(v[1] - 28 * DT, -30);
-		if (move(V, p, v, DT)) return i;
+		if (move(V, p, v, DT) == 2) return i;
 	}
 	return 0;
 };
@@ -45,8 +45,10 @@ describe('move', () => {
 	test('falling onto a floor ends on an integer height, grounded', () => {
 		const V = flat(10);
 		const p: Vec3 = [100.5, 14.37, 100.5];
+		expect(move(V, p, [0, 0, 0], DT)).toBe(0);
 		expect(fall(V, p, [0, 0, 0])).toBeGreaterThan(0);
 		expect(p[1]).toBe(10);
+		expect(move(V, p, [0, -1, 0], DT)).toBe(2);
 	});
 
 	test('a wall stops the walk and zeroes the velocity', () => {
@@ -54,18 +56,19 @@ describe('move', () => {
 		for (let y = 10; y < 13; y++) V[idx(103, y, 100)] = STONE;
 		const p: Vec3 = [100.5, 10, 100.5];
 		const v: Vec3 = [4.3, 0, 0];
-		for (let i = 0; i < 100; i++) move(V, p, v, DT);
+		const contacts = Array.from({ length: 100 }, () => move(V, p, v, DT));
+		expect(Math.max(...contacts)).toBe(1);
 		expect(p[0]).toBeLessThanOrEqual(102.7);
 		expect(p[0]).toBeGreaterThan(102.5);
 		expect(v[0]).toBe(0);
 	});
 
-	test('a ceiling zeroes the upward velocity', () => {
+	test('a ceiling zeroes the upward velocity and is no contact, so it never allows the water jump', () => {
 		const V = flat(10);
 		V[idx(100, 12, 100)] = STONE;
 		const p: Vec3 = [100.5, 10, 100.5];
 		const v: Vec3 = [0, 8.5, 0];
-		move(V, p, v, DT);
+		expect(move(V, p, v, DT)).toBe(0);
 		expect(v[1]).toBe(0);
 		expect(p[1]).toBe(10);
 	});
@@ -103,12 +106,12 @@ describe('move', () => {
 });
 
 describe('lift', () => {
-	/** Frame loop of the game: walks towards +x at 4.3 and holds Space, returns the feet after `steps` frames. */
+	/** Frame loop of the game: walks towards +x at 4.3 (1.7 with the feet in water) and holds Space, returns the feet after `steps` frames. */
 	const walkJumping = (V: Uint8Array, p: Vec3, steps: number) => {
 		const v: Vec3 = [0, 0, 0];
-		let ground = false;
+		let ground = 0;
 		for (let i = 0; i < steps; i++) {
-			v[0] = 4.3;
+			v[0] = V[idx(...p)] == WATER ? 1.7 : 4.3;
 			v[1] = lift(V, p, v[1], DT, 1, ground);
 			ground = move(V, p, v, DT);
 		}
@@ -128,7 +131,7 @@ describe('lift', () => {
 		for (let x = 90; x < 110; x++) {
 			for (let y = 10; y < (x < 103 ? 15 : top + 1); y++) V[idx(x, y, 100)] = x < 103 ? WATER : STONE;
 		}
-		const p = walkJumping(V, [100.5, 12, 100.5], 45);
+		const p = walkJumping(V, [100.5, 12, 100.5], 60);
 		expect(p[0]).toBeGreaterThan(104);
 		expect(p[1]).toBeGreaterThanOrEqual(top + 1);
 	});
@@ -137,8 +140,17 @@ describe('lift', () => {
 		const V = flat(10);
 		V[idx(100, 20, 100)] = WATER;
 		const water: Vec3 = [100.5, 20, 100.5];
-		expect(lift(V, water, -5, DT, 0, false)).toBe(-2);
-		expect(lift(V, [100.5, 21, 100.5], -29.9, DT, 0, false)).toBe(-30);
+		expect(lift(V, water, -5, DT, 0, 0)).toBe(-2);
+		expect(lift(V, [100.5, 21, 100.5], -29.9, DT, 0, 0)).toBe(-30);
+	});
+
+	test('Space in open water swims up slowly, against a wall it jumps out', () => {
+		const V = flat(10);
+		V[idx(100, 20, 100)] = WATER;
+		const water: Vec3 = [100.5, 20, 100.5];
+		expect(lift(V, water, 0, DT, 1, 0)).toBe(3);
+		expect(lift(V, water, 0, DT, 1, 1)).toBe(8.5);
+		expect(lift(V, [100.5, 21, 100.5], 0, DT, 1, 1)).toBeLessThan(0);
 	});
 });
 

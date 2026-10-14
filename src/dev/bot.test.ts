@@ -8,7 +8,7 @@ class FakeGame implements Dbg {
 	P: Vec3;
 	v: Vec3 = [0, 0, 0];
 	private current: [number, number] | undefined;
-	private ground = false;
+	private ground = 0;
 	private keys: Record<string, boolean> = {};
 	private selected = GRASS;
 
@@ -58,8 +58,9 @@ class FakeGame implements Dbg {
 		const [sy, sp] = A.map(Math.sin) as typeof A;
 		const [cy, cp] = A.map(Math.cos) as typeof A;
 		const [fw, rt] = [key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA')];
-		v[0] = (fw * sy + rt * cy) * 4.3;
-		v[2] = (fw * cy - rt * sy) * 4.3;
+		const speed = V[idx(...P)] == WATER ? 1.7 : 4.3;
+		v[0] = (fw * sy + rt * cy) * speed;
+		v[2] = (fw * cy - rt * sy) * speed;
 		v[1] = lift(V, P, v[1], dt, key('Space'), this.ground);
 		this.ground = move(V, P, v, dt);
 		this.current = target(V, [P[0], P[1] + 1.62, P[2]], [sy * cp, sp, cy * cp]);

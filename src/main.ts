@@ -1,5 +1,5 @@
 import shader from './shader.wgsl' with { type: 'text' };
-import { BYTES, collides, LAYER, lift, move, target, WATER, type Vec3 } from './world.ts';
+import { BYTES, collides, idx, LAYER, lift, move, target, WATER, type Vec3 } from './world.ts';
 
 /** Feet position, spawned high above the plateau on the west shore of the lake, under the snow-capped mountain, and dropped onto it. */
 const P: Vec3 = [434.5, 100, 511.5];
@@ -96,15 +96,16 @@ onmousemove = e => {
 };
 
 let last = 0;
-let ground = false;
+let ground = 0;
 const frame = (now: number) => {
 	const dt = Math.min(now - last, 30) / 1e3;
 	last = now;
 	const [sy, sp] = A.map(Math.sin) as typeof A;
 	const [cy, cp] = A.map(Math.cos) as typeof A;
 	const [fw, rt] = [key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA')];
-	v[0] = (fw * sy + rt * cy) * 4.3;
-	v[2] = (fw * cy - rt * sy) * 4.3;
+	const speed = V[idx(...P)] == WATER ? 1.7 : 4.3;
+	v[0] = (fw * sy + rt * cy) * speed;
+	v[2] = (fw * cy - rt * sy) * speed;
 	v[1] = lift(V, P, v[1], dt, key('Space'), ground);
 	ground = move(V, P, v, dt);
 	const eye: Vec3 = [P[0], P[1] + 1.62, P[2]];
