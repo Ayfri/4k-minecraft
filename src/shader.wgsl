@@ -32,7 +32,7 @@ fn A(P: vec3f) -> vec2u {
   return vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
 }
 
-/** Colour index of the flower texel `u` of the cell C, 0 where it is transparent (the top face always is): a stem, and a red or yellow head. */
+/** Colour index of the flower texel `u` of the cell C: a stem and a red or yellow head, 0 where transparent (the top face always is). */
 fn F(u: vec2u) -> u32 {
   let a = abs(i32(u.x) * 2 - 15);
   if N.y == 0 {
@@ -42,7 +42,7 @@ fn F(u: vec2u) -> u32 {
   return 0;
 }
 
-/** Amanatides-Woo march through blocks up to `k`, returns the distance and leaves the hit cell, face and block in C, N and K. A flower only stops it on an opaque texel. */
+/** Amanatides-Woo march past blocks up to `k`, returns the distance and leaves cell, face and block in C, N, K (flowers: opaque texels). */
 fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   let s = sign(d);
   let r = 1 / max(abs(d), vec3f(1e-6));

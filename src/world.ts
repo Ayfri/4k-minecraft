@@ -22,17 +22,16 @@ export const SNOW = 11;
 export const COAL = 12;
 export const IRON = 13;
 export const DIAMOND = 14;
-export const BLOCKS = 15;
 
-/** Voxel index of a position, one byte per cell. x and z wrap by bitmask, y at or past HEIGHT lands past the buffer. The bitwise operators truncate, so x and z shift by SIZE first to floor down to -SIZE. */
+/** Voxel index of a position, one byte per cell. x and z wrap by bitmask (SIZE shift floors negatives), y past HEIGHT lands out of range. */
 export const idx = (x: number, y: number, z: number) => (MASK & (x + SIZE)) | ((MASK & (z + SIZE)) << 9) | (y << 18);
 
 export type Vec3 = [number, number, number];
 
-/** Stone below the world, air above it (the lookup lands past the buffer, `undefined > WATER` is false), water and flowers never block. */
+/** Stone below the world, air above it (the lookup lands past the buffer, `undefined > WATER` is false), water and flowers pass. */
 export const solid = (V: Uint8Array, x: number, y: number, z: number) => y < 0 || V[idx(x, y, z)]! > WATER;
 
-/** Whether the 0.6 x 1.8 box standing on the feet position `p` overlaps a solid cell. The samples are 0.9 apart on y so no cell is skipped. */
+/** Whether the 0.6 x 1.8 box standing on the feet position `p` overlaps a solid cell, sampled 0.9 apart on y so no cell is skipped. */
 export const collides = (V: Uint8Array, p: Vec3) => {
 	for (let i = 0; i < 12; i++) {
 		if (solid(V, p[0] + (i & 1) * .6 - .3, p[1] + (i % 3) * .9, p[2] + +(i > 5) * .6 - .3)) return true;
@@ -40,7 +39,7 @@ export const collides = (V: Uint8Array, p: Vec3) => {
 	return false;
 };
 
-/** Moves `p` by `v * dt` one axis at a time, zeroing the velocity it hits, and wraps it into [0, SIZE) (y stays under HEIGHT). Returns whether the feet landed. A step must stay under one block: `dt <= .03` with `v[1] >= -30`. */
+/** Moves `p` by `v * dt` per axis, zeroing the velocity it hits, wraps it into [0, SIZE) and returns whether the feet landed (`dt <= .03`). */
 export const move = (V: Uint8Array, p: Vec3, v: Vec3, dt: number) => {
 	let ground = false;
 	for (const a of [0, 1, 2] as const) {
@@ -57,13 +56,13 @@ export const move = (V: Uint8Array, p: Vec3, v: Vec3, dt: number) => {
 	return ground;
 };
 
-/** Next vertical velocity: jumping from the ground or out of water (feet in a water cell), a slow sink in water, a fall capped at 30 in air. */
+/** Next vertical velocity: Space jumps from the ground or out of water (feet in a water cell), water sinks slowly, air falls fast. */
 export const lift = (V: Uint8Array, p: Vec3, vy: number, dt: number, jump: number, ground: boolean) => {
 	const swim = V[idx(...p)] == WATER;
 	return jump && (ground || swim) ? 8.5 : swim ? Math.max(vy - 8.4 * dt, -2) : Math.max(vy - 28 * dt, -30);
 };
 
-/** Marches 6 blocks along `dir` from `eye` and returns the voxel index of the first solid cell and of the cell before it (-1 when the eye is inside). */
+/** Marches 6 blocks along `dir` from `eye`, returns the first solid or flower cell and the cell before it (-1 when the eye is inside). */
 export const target = (V: Uint8Array, eye: Vec3, dir: Vec3): [hit: number, place: number] | undefined => {
 	let place = -1;
 	for (let t = 0; t < 6; t += .02) {

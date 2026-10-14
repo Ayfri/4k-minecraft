@@ -67,7 +67,7 @@ const put = (i: number, b: number) => {
 	queue.writeBuffer(world, i & ~3, V, i & ~3, 4);
 };
 
-/** Left click breaks the target and the flower above it, right click places the selected block in a free cell or over a flower, never inside the player. */
+/** Left click breaks the target and the flower above it, right click places the selected block in a free cell or over a flower. */
 const act = (button: number) => {
 	if (!hit) return;
 	const [i, free] = hit;
