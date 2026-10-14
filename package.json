@@ -6,8 +6,12 @@
     "build": "bun scripts/build.ts",
     "check": "tsc",
     "dev": "bun scripts/build.ts --dev --watch",
+    "minify": "bun scripts/minify.ts",
+    "serve": "bun scripts/serve.ts",
     "test": "bun test",
-    "verify": "bun scripts/verify.ts"
+    "test:e2e": "bun test scripts/e2e.test.ts",
+    "verify": "bun scripts/verify.ts",
+    "webview": "bun scripts/webview.ts"
   },
   "devDependencies": {
     "@gfx/zopfli": "^1.0.15",
