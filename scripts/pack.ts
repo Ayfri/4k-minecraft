@@ -4,7 +4,7 @@
  * punctuation, both undone through a lookup string. CR is the only byte the parser loses (normalized to LF), it is
  * escaped as `E1` and the escape byte itself as `E0`, with `E` the rarest safe byte of the stream.
  */
-import { deflateAsync } from '@gfx/zopfli';
+import { zopfli } from './lib/zopfli.ts';
 
 /** The bytes the decoder finds by `indexOf` in its lookup string, NUL first then 0x80-0x9F. */
 const TABLE = Uint8Array.from({ length: 33 }, (_, i) => (i ? i + 127 : 0));
@@ -24,9 +24,9 @@ export async function candidates(input: Uint8Array<ArrayBuffer>): Promise<[strin
 		['zlib-9', Bun.deflateSync(input, { level: 9 })],
 		['libdeflate-12', Bun.deflateSync(input, { level: 12, library: 'libdeflate' })],
 	];
-	for (const numiterations of [15, 200, 1000])
-		for (const blocksplittingmax of [0, 15])
-			out.push([`zopfli-${numiterations}-${blocksplittingmax}`, await deflateAsync(input, { blocksplitting: true, blocksplittingmax, numiterations })]);
+	const settings = [15, 200, 1000].flatMap(numiterations => [0, 15].map(blocksplittingmax => ({ blocksplitting: true, blocksplittingmax, numiterations })));
+	const streams = await Promise.all(settings.map(options => zopfli(input, options)));
+	settings.forEach((s, i) => out.push([`zopfli-${s.numiterations}-${s.blocksplittingmax}`, streams[i]!]));
 	return out.sort((a, b) => a[1].length - b[1].length);
 }
 
