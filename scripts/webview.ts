@@ -84,6 +84,8 @@ export class Page implements AsyncDisposable {
 			/** Only one `cdp()` and one `evaluate()` may be in flight per view. */
 			await view.cdp('Runtime.enable');
 			await view.cdp('Log.enable');
+			/** The headless window loses its frame to the viewport (1264x625 for a 1280x720 request), the override pins the exact size. */
+			await view.cdp('Emulation.setDeviceMetricsOverride', { deviceScaleFactor: 1, height, mobile: false, width });
 			on<{ exceptionDetails: { exception?: Remote } }>('Runtime.exceptionThrown', p => logs.push(`[exception] ${JSON.stringify(p.exceptionDetails.exception?.description ?? p.exceptionDetails)}`));
 			on<{ entry: { level: string; text: string } }>('Log.entryAdded', p => logs.push(`[${p.entry.level}] ${p.entry.text}`));
 			await view.navigate(/^[a-z]{2,}:/.test(target) ? target : pathToFileURL(target).href);
