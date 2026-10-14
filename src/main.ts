@@ -1,5 +1,5 @@
 import shader from './shader.wgsl' with { type: 'text' };
-import { collides, lift, move, target, WATER, type Vec3 } from './world.ts';
+import { collides, FLOWER, lift, move, target, WATER, type Vec3 } from './world.ts';
 
 /** Feet position, spawned above the grass east of the lake and dropped onto the terrain. */
 const P: Vec3 = [280.5, 64, 280.5];
@@ -71,11 +71,12 @@ const put = (i: number, b: number) => {
 const act = (button: number) => {
 	if (!hit) return;
 	const [i, free] = hit;
-	if (button < 2) return put(i, 0);
-	const old = V[free]!;
+	if (button < 2) return put(i, 0), V[i + 262144] == FLOWER && put(i + 262144, 0);
+	const cell = V[i] == FLOWER ? i : free;
+	const old = V[cell]!;
 	if (old <= WATER) {
-		put(free, selected);
-		if (collides(V, P)) put(free, old);
+		put(cell, selected);
+		if (collides(V, P)) put(cell, old);
 	}
 };
 

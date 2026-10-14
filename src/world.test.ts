@@ -170,12 +170,19 @@ describe('target', () => {
 		expect(target(V, eye, [0, 0, 1])).toEqual([idx(100, 12, 100), idx(100, 12, 99)]);
 	});
 
-	test('looks through flowers', () => {
+	test('stops at flowers, which still have no collision', () => {
 		const V = flat(10);
 		V[idx(100, 12, 98)] = FLOWER;
 		V[idx(100, 12, 100)] = STONE;
-		expect(target(V, eye, [0, 0, 1])).toEqual([idx(100, 12, 100), idx(100, 12, 99)]);
+		expect(target(V, eye, [0, 0, 1])).toEqual([idx(100, 12, 98), idx(100, 12, 97)]);
 		expect(collides(V, [100.5, 11, 98.5])).toBe(false);
+	});
+
+	test('looks through water in front of a flower', () => {
+		const V = flat(10);
+		V[idx(100, 12, 97)] = WATER;
+		V[idx(100, 12, 98)] = FLOWER;
+		expect(target(V, eye, [0, 0, 1])).toEqual([idx(100, 12, 98), idx(100, 12, 97)]);
 	});
 
 	test('wraps over the seam', () => {

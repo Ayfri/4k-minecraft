@@ -7,7 +7,7 @@ export const SEA = 24;
 /** Highest column that gets a beach and no trees. */
 export const SHORE = SEA + 1;
 export const AIR = 0;
-/** Flowers are the one non-solid block a ray stops at (a cutout texture), every block above WATER is solid. */
+/** Flowers have no collision and `target` stops at them to break or replace them, the shader's march only stops on their opaque texels. */
 export const FLOWER = 1;
 export const WATER = 2;
 export const GRASS = 3;
@@ -68,7 +68,7 @@ export const target = (V: Uint8Array, eye: Vec3, dir: Vec3): [hit: number, place
 	let place = -1;
 	for (let t = 0; t < 6; t += .02) {
 		const i = idx(eye[0] + dir[0] * t, eye[1] + dir[1] * t, eye[2] + dir[2] * t);
-		if (V[i]! > WATER) return [i, place];
+		if (V[i]! && V[i]! - WATER) return [i, place];
 		place = i;
 	}
 };
