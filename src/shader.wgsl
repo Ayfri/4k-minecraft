@@ -1,4 +1,4 @@
-struct Uniforms { p: vec3f, t: f32, r: vec2f, a: vec2f, h: vec3f, s: f32 }
+struct Uniforms { p: vec3f, t: f32, r: vec2f, a: vec2f, s: f32, h: f32 }
 @group(0) @binding(0) var<storage, read_write> W: array<u32>;
 @group(0) @binding(1) var<uniform> U: Uniforms;
 
@@ -52,7 +52,11 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   uv.y = -uv.y;
   let d = normalize(fw * 1.4 + r * uv.x + cross(fw, r) * uv.y);
   let t = M(U.p, d, 0, 256);
-  let albedo = vec3f((vec3u(COLORS[K]) >> vec3u(8, 4, 0)) & vec3u(15)) / 15 * dot(N, vec3f(.6, 1, .8));
+  var albedo = vec3f((vec3u(COLORS[K]) >> vec3u(8, 4, 0)) & vec3u(15)) / 15 * dot(N, vec3f(.6, 1, .8));
+  if K > 1 && f32(u32(C.x & MASK) | (u32(C.z & MASK) << 9) | (u32(C.y) << 18)) == U.h {
+    let e = abs(fract(U.p + d * t) - .5) * (1 - N);
+    if max(e.x, max(e.y, e.z)) > .46 { albedo = 1 - albedo; }
+  }
   return vec4f(sqrt(mix(albedo, vec3f(.5, .7, 1), smoothstep(40, 120, t))), 1);
 }
 

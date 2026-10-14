@@ -1,7 +1,10 @@
 import shader from './shader.wgsl' with { type: 'text' };
+import { collides, idx, move, target, WATER, type Vec3 } from './world.ts';
 
-const P: [number, number, number] = [256.5, 70, 256.5];
-const A: [number, number] = [0, -.6];
+/** Feet position, spawned above the grass east of the lake and dropped onto the terrain. */
+const P: Vec3 = [280.5, 64, 280.5];
+const v: Vec3 = [0, 0, 0];
+const A: [number, number] = [-2.4, -.25];
 const keys: Record<string, boolean> = {};
 const key = (code: string) => +!!keys[code];
 
@@ -27,11 +30,14 @@ const compute = device.createComputePipeline({ compute: { module }, layout: 'aut
 const render = device.createRenderPipeline({ fragment: { module, targets: [{ format: 'bgra8unorm' }] }, layout: 'auto', vertex: { module } });
 const renderBinds = bind(render);
 
-/** Writes the 12 floats of the `Uniforms` struct: eye, time, canvas size, yaw and pitch, targeted cell, seed. */
-const upload = (seconds: number) => queue.writeBuffer(uniforms, 0, new Float32Array([...P, seconds, c.width, c.height, ...A, -1, -1, -1, 1]));
+/** The targeted voxel index and the free cell in front of it, refreshed every frame. */
+let hit: [number, number] | undefined;
+
+/** Writes the 10 floats of the `Uniforms` struct: eye, time, canvas size, yaw and pitch, seed, targeted voxel index (-1 for none). */
+const upload = (seconds: number, eye: Vec3) => queue.writeBuffer(uniforms, 0, new Float32Array([...eye, seconds, c.width, c.height, ...A, 1, hit ? hit[0] : -1]));
 
 const t0 = DEV ? performance.now() : 0;
-upload(0);
+upload(0, P);
 const gen = device.createCommandEncoder();
 const genPass = gen.beginComputePass();
 genPass.setPipeline(compute);
@@ -53,8 +59,27 @@ const draw = () => {
 	return encoder.finish();
 };
 
+/** Sets a voxel and uploads the 4-byte word that holds it. */
+const put = (i: number, b: number) => {
+	V[i] = b;
+	queue.writeBuffer(world, i & ~3, V, i & ~3, 4);
+};
+
+/** Left button (0) breaks the targeted block, right button (2) places grass in front of it unless that cell is taken or inside the player. */
+const act = (button: number) => {
+	if (!hit) return;
+	const [i, free] = hit;
+	if (button < 2) return put(i, 0);
+	const old = V[free]!;
+	if (old < 2) {
+		put(free, 2);
+		if (collides(V, P)) put(free, old);
+	}
+};
+
 onkeydown = onkeyup = e => (keys[e.code] = e.type == 'keydown');
-c.onclick = () => c.requestPointerLock({ unadjustedMovement: true });
+onmousedown = e => (document.pointerLockElement ? act(e.button) : c.requestPointerLock({ unadjustedMovement: true }));
+oncontextmenu = () => !1;
 onmousemove = e => {
 	if (!document.pointerLockElement) return;
 	A[0] += e.movementX * .002;
@@ -62,16 +87,20 @@ onmousemove = e => {
 };
 
 let last = 0;
+let ground = false;
 const frame = (now: number) => {
-	const step = Math.min(now - last, 50) * .01;
+	const dt = Math.min(now - last, 30) / 1e3;
 	last = now;
 	const [sy, sp, cy, cp] = [Math.sin(A[0]), Math.sin(A[1]), Math.cos(A[0]), Math.cos(A[1])];
-	const [fw, rt, up] = [key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA'), key('Space') - key('ShiftLeft')];
-	P[0] += (fw * sy * cp + rt * cy) * step;
-	P[1] += (fw * sp + up) * step;
-	P[2] += (fw * cy * cp - rt * sy) * step;
-	for (const a of [0, 2] as const) P[a] -= Math.floor(P[a] / 512) * 512;
-	upload(now / 1e3);
+	const [fw, rt] = [key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA')];
+	const swim = V[idx(Math.floor(P[0]), Math.floor(P[1] + .5), Math.floor(P[2]))] == WATER;
+	v[0] = (fw * sy + rt * cy) * 4.3;
+	v[2] = (fw * cy - rt * sy) * 4.3;
+	v[1] = swim ? (key('Space') ? 3 : Math.max(v[1] - 8.4 * dt, -2)) : key('Space') && ground ? 8.5 : Math.max(v[1] - 28 * dt, -30);
+	ground = move(V, P, v, dt);
+	const eye: Vec3 = [P[0], P[1] + 1.62, P[2]];
+	hit = target(V, eye, [sy * cp, sp, cy * cp]);
+	upload(now / 1e3, eye);
 	queue.submit([draw()]);
 	requestAnimationFrame(frame);
 };
@@ -87,5 +116,5 @@ if (DEV) {
 		await queue.onSubmittedWorkDone();
 		return (performance.now() - start) / n;
 	};
-	Object.assign(globalThis, { dbg: { A, P, V, bench } });
+	Object.assign(globalThis, { dbg: { A, P, V, act, bench, v } });
 }
