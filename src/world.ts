@@ -23,7 +23,7 @@ export const COAL = 12;
 export const IRON = 13;
 export const DIAMOND = 14;
 
-/** Voxel index of a position, one byte per cell. x and z wrap by bitmask (SIZE shift floors negatives), y past HEIGHT lands out of range. */
+/** Voxel index, one byte per cell: x and z wrap by bitmask (the SIZE shift floors negatives), y past HEIGHT is out of range. */
 export const idx = (x: number, y: number, z: number) => (MASK & (x + SIZE)) | ((MASK & (z + SIZE)) << 9) | (y << 18);
 
 export type Vec3 = [number, number, number];
@@ -39,7 +39,7 @@ export const collides = (V: Uint8Array, p: Vec3) => {
 	return false;
 };
 
-/** Moves `p` by `v * dt` per axis, zeroing the velocity it hits, wraps it into [0, SIZE) and returns whether the feet landed (`dt <= .03`). */
+/** Moves `p` by `v * dt` per axis, zeroing blocked velocity, wraps x and z, returns whether the feet landed (needs `dt <= .03`). */
 export const move = (V: Uint8Array, p: Vec3, v: Vec3, dt: number) => {
 	let ground = false;
 	for (const a of [0, 1, 2] as const) {

@@ -26,7 +26,7 @@ function dispatch() {
 	}
 }
 
-/** `@gfx/zopfli`'s async API still blocks its thread (a synchronous WASM call), so every job runs in a Worker of a pool with one per core. */
+/** `@gfx/zopfli`'s async API blocks its thread (synchronous WASM), so jobs run in a pool of Workers, one per core. */
 export const zopfli = (input: Uint8Array, options: ZopfliOptions) =>
 	new Promise<Uint8Array>((resolve, reject) => {
 		queue.push({ input, options, reject, resolve });

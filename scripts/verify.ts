@@ -1,4 +1,4 @@
-/** Builds, opens the page in headless Chrome and fails on console errors, extra arguments go to `webview.ts`: `bun run verify -- --dev --eval "dbg.bench()"`. */
+/** Builds, opens the page in headless Chrome, fails on console errors and forwards the rest to `webview.ts` (`--dev --eval --keys`). */
 import { tmpdir } from 'node:os';
 import { build } from './build.ts';
 import { inspect } from './webview.ts';

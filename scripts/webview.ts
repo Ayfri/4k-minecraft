@@ -1,4 +1,4 @@
-/** Page driver on `Bun.WebView`, one Chrome and profile per `Page`. CLI: `bun scripts/webview.ts <file> --wait ms --shot f.png --eval expr --keys "w:500" --size 1280x720 --headed`. */
+/** Page driver on `Bun.WebView`, one Chrome and profile per `Page`, CLI: `<file> --wait --shot --eval --keys --size --headed`. */
 import { existsSync, rmSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

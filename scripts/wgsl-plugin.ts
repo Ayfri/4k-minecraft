@@ -2,7 +2,7 @@ import { shader } from './shader.ts';
 
 const WORLD = `${import.meta.dir}/../src/world.ts`;
 
-/** Prod inlines `shader()`. Dev exports the readable WGSL with the constants read from the live `world.ts`, since an HMR rebuild never reruns this loader for it. */
+/** Dev substitutes the constants from the live `world.ts` at runtime: an HMR rebuild never reruns this loader for the shader. */
 export const wgslPlugin = (prod: boolean): Bun.BunPlugin => ({
 	name: 'wgsl',
 	setup(b) {

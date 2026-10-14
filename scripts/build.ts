@@ -18,7 +18,7 @@ async function bundle(dev: boolean) {
 	return { code: (await result.outputs[0]!.text()).trim(), inputs: output!.inputs };
 }
 
-/** Writes `dist/dev.html`, or in prod `dist/min.js`, then the packed `dist/index.html` and `dist/size.json` once the page fits 4096 B (else it throws). */
+/** Writes `dist/dev.html`, or `dist/min.js` then `dist/index.html` and `dist/size.json` once the page fits 4096 B. */
 export async function build(dev: boolean, rank = false) {
 	const { code, inputs } = await bundle(dev);
 	if (dev) {

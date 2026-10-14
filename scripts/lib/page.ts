@@ -1,4 +1,4 @@
-/** Test helpers: reads a packed page back the way a browser does (windows-1252, CR normalized) and runs its decoder against a fake canvas. */
+/** Reads a packed page back like a browser (windows-1252, CR normalized) and runs its decoder against a fake canvas. */
 import { expect } from 'bun:test';
 import { pack } from '../pack.ts';
 
@@ -14,7 +14,7 @@ const parse = (html: Uint8Array) =>
 		.join('')
 		.replace(/\r\n?/g, '\n');
 
-/** Packs `js` and returns the comment as the parser sees it, plus what the page's decoder passes to `eval`. Undefined when no stream fits a comment. */
+/** The comment as the parser sees it and what the decoder passes to `eval`, undefined when no stream of `js` fits a comment. */
 async function roundTrip(js: string) {
 	const html = await pack(js).then(
 		packed => packed.html,
@@ -32,7 +32,7 @@ async function roundTrip(js: string) {
 	return { comment, decoded: await decoded, html };
 }
 
-/** Packs, then holds the page to every rule the HTML comment and the decoder need. Returns false when no stream of `js` can sit in a comment. */
+/** Holds the packed page to every rule the comment and the decoder need, false when no stream of `js` fits a comment. */
 export async function check(js: string) {
 	const trip = await roundTrip(js);
 	if (!trip) return false;

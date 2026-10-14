@@ -1,4 +1,4 @@
-/** The raw deflate stream sits in an HTML comment read as windows-1252, only CR is lost to the parser: escaped as `E1`, `E` itself as `E0` (`E` = rarest safe byte). */
+/** The deflate stream sits in a comment read as windows-1252, CR (the one byte the parser rewrites) is escaped `E1` and `E` itself `E0`. */
 import { zopfli } from './lib/zopfli.ts';
 
 /** The bytes the decoder finds by `indexOf` in its lookup string, NUL first then 0x80-0x9F. */
@@ -37,7 +37,7 @@ export function encode(stream: Uint8Array): { data: Uint8Array; escape: number }
 	return text.includes('--') || /^-?>|-$/.test(text) ? undefined : { data, escape };
 }
 
-/** Packs `js` into a page that inflates and evals it, the comment sits in the `<canvas id=c>` fallback content so the decoder reads `c.firstChild`. */
+/** Packs `js` into a self-inflating page, the comment is `<canvas id=c>` fallback content read back as `c.firstChild`. */
 export async function pack(js: string): Promise<Packed> {
 	const input = new TextEncoder().encode(js);
 	let best: { codec: string; encoded: NonNullable<ReturnType<typeof encode>>; stream: Uint8Array } | undefined;
