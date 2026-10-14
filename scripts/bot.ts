@@ -19,10 +19,10 @@ interface RunOptions {
 
 export type Result = Status & { check: Check; problems: string[] };
 
-/** View of a 9x9x9 blueprint from the door side: the position and angles of the fly camera. */
+/** Low three-quarter view of a 9x9x9 blueprint from the door side, near eye level so the openings show: the position and angles of the fly camera. */
 export const overview = ([ox, oy, oz]: readonly [number, number, number]) => {
-	const [x, y, z] = [ox + 4.5, oy + 7, oz - 10.5];
-	const [dx, dy, dz] = [ox + 4.5 - x, oy + 3 - y, oz + 4.5 - z];
+	const [x, y, z] = [ox - 2.5, oy + 3.5, oz - 4.5];
+	const [dx, dy, dz] = [ox + 4.5 - x, oy + 2.5 - y, oz + 4.5 - z];
 	return { pitch: Math.atan2(dy, Math.hypot(dx, dz)), x, y, yaw: Math.atan2(dx, dz), z };
 };
 
