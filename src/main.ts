@@ -2,8 +2,8 @@ import shader from './shader.wgsl' with { type: 'text' };
 
 const P: [number, number, number] = [256, 10, 256];
 const A: [number, number] = [0, -.2];
-const keys = new Set<string>();
-const key = (code: string) => +keys.has(code);
+const keys: Record<string, boolean> = {};
+const key = (code: string) => +!!keys[code];
 
 c.style = 'position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated';
 c.width = innerWidth / 2;
@@ -53,8 +53,7 @@ const draw = () => {
 	return encoder.finish();
 };
 
-onkeydown = e => keys.add(e.code);
-onkeyup = e => keys.delete(e.code);
+onkeydown = onkeyup = e => (keys[e.code] = e.type == 'keydown');
 c.onclick = () => c.requestPointerLock({ unadjustedMovement: true });
 onmousemove = e => {
 	if (!document.pointerLockElement) return;

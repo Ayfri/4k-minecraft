@@ -6,7 +6,7 @@ import { watch } from 'node:fs';
 import { minify } from 'terser';
 import * as world from '../src/world.ts';
 import { pack } from './pack.ts';
-import { minifyWgsl, substituteConstants } from './wgsl.ts';
+import { minifyWgsl, renameWgsl, substituteConstants } from './wgsl.ts';
 
 const root = `${import.meta.dir}/..`;
 const consts = Object.fromEntries(Object.entries(world).filter((e): e is [string, number] => typeof e[1] == 'number'));
@@ -27,7 +27,7 @@ async function bundle(dev: boolean, emptyWgsl = false) {
 						const source = await Bun.file(path).text();
 						const substituted = substituteConstants(source, consts);
 						wgsl.source = source.length;
-						wgsl.min = dev ? substituted : minifyWgsl(substituted);
+						wgsl.min = dev ? substituted : renameWgsl(minifyWgsl(substituted));
 						return { contents: emptyWgsl ? '' : wgsl.min, loader: 'text' };
 					});
 				},

@@ -6,12 +6,13 @@ var<private> C: vec3i;
 var<private> N: vec3f;
 var<private> K: u32;
 
-const COLORS = array(0u, 0x3050c0, 0x5aa83c, 0x866043, 0x7f7f7f, 0xe0d49a, 0x6b5130, 0x2f7d2f, 0xb08a50, 0x9a4a3a, 0xf4f8ff, 0x333333, 0xc8a384, 0x5de0e0);
+const COLORS = array(0u, 0x35c, 0x5a3, 0x864, 0x888, 0xed9, 0x753, 0x373, 0xb85, 0xa43, 0xfff, 0x333, 0xc98, 0x5ee);
 
 fn H(p: vec3u) -> f32 {
-  var h = (p.x * 0x8da6b343) ^ (p.y * 0xd8163841) ^ (p.z * 0xcb1ab31f);
-  h = (h ^ (h >> 16)) * 0x45d9f3b;
-  return f32(h ^ (h >> 16)) / 4294967296;
+  var h = ((p.x * 0x45d9f3b + p.y) * 0x45d9f3b + p.z) * 0x45d9f3b;
+  h ^= h >> 16;
+  h *= 0x45d9f3b;
+  return f32(h ^ (h >> 16)) * 2.3e-10;
 }
 
 /** The block at a cell: stone below the world, air above it, x and z wrap. */
@@ -51,7 +52,7 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   uv.y = -uv.y;
   let d = normalize(fw * 1.4 + r * uv.x + cross(fw, r) * uv.y);
   let t = M(U.p, d, 0, 256);
-  let albedo = unpack4x8unorm(COLORS[K]).zyx * dot(N, vec3f(.6, 1, .8));
+  let albedo = vec3f((vec3u(COLORS[K]) >> vec3u(8, 4, 0)) & vec3u(15)) / 15 * dot(N, vec3f(.6, 1, .8));
   return vec4f(sqrt(mix(albedo, vec3f(.5, .7, 1), smoothstep(40, 120, t))), 1);
 }
 
