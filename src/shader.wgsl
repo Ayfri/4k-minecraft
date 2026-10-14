@@ -98,13 +98,10 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   let eyeIn = B(vec3i(floor(U.p))) == WATER;
   var t = M(U.p, d, select(0u, WATER, eyeIn), 256);
   var wd = select(0., t, eyeIn);
-  var fr = 0.;
   if K == WATER {
     let t0 = t;
-    let g = .05 * sin((U.p + d * t).xz * 2 + U.t);
     t += M(U.p + d * (t + .01), d, WATER, 128) + .01;
     wd = t - t0;
-    fr = pow(1 - max(dot(-d, normalize(vec3f(g.x, 1, g.y))), 0), 5);
   }
   var col = S(d) + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000) + step(.985, H(vec3u(d * 200 + 250))) * (1 - D);
   if K > 0 {
@@ -135,7 +132,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   }
   col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .3));
   let z = abs(q.xy - U.r / 2);
-  let o = sqrt(mix(col, S(-d), fr));
+  let o = sqrt(col);
   return vec4f(select(o, 1 - o, min(z.x, z.y) < 1 && max(z.x, z.y) < 6), 1);
 }
 
