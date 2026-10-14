@@ -6,7 +6,11 @@ const root = `${import.meta.dir}/..`;
 
 /** Statements that stand on the ground of column (x, z) and look along `yaw`, `pitch` with the sun clock at `time` (noon 121, sunset 271, night 421). */
 const at = (x: number, z: number, yaw: number, pitch: number, time = 121) =>
-	`let y=63;while(dbg.V[${x | 0}+${z | 0}*512+y*262144]<3)y--;dbg.P.splice(0,3,${x},y+1,${z});dbg.A.splice(0,2,${yaw},${pitch});dbg.time(${time});`;
+	`window.fly=0;let y=63;while(dbg.V[${x | 0}+${z | 0}*512+y*262144]<3)y--;dbg.P.splice(0,3,${x},y+1,${z});dbg.A.splice(0,2,${yaw},${pitch});dbg.time(${time});`;
+
+/** Holds the camera in the air at (x, y, z) on every frame, against gravity, until a later view stands on the ground again. */
+const fly = (x: number, y: number, z: number, yaw: number, pitch: number) =>
+	`const f=window.fly=Symbol();(function pin(){if(window.fly!==f)return;dbg.P.splice(0,3,${x},${y},${z});dbg.v.fill(0);requestAnimationFrame(pin)})();dbg.A.splice(0,2,${yaw},${pitch});dbg.time(121);`;
 
 /** Places blocks 3 to 11 on a 3x3 patch of ground centered on (x, z), farthest from the standing point first so each ray reaches bare ground. */
 const blocks = (x: number, z: number, yaw: number) =>
@@ -20,7 +24,7 @@ const blocks = (x: number, z: number, yaw: number) =>
 
 const views: { name: string; eval: string }[] = [
 	{ name: 'hero', eval: at(280.5, 280.5, -2.4, -.25) },
-	{ name: 'mountains', eval: at(205.5, 125.5, -1.57, -.05) },
+	{ name: 'mountains', eval: fly(190.5, 70, 150.5, -2.3, -.35) },
 	{ name: 'sunset', eval: at(280.5, 280.5, -1.2, -.1, 255) },
 	{ name: 'night', eval: at(280.5, 280.5, -2.4, .15, 300) },
 	{ name: 'blocks', eval: blocks(348.5, 32.5, .8) },

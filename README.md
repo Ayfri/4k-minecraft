@@ -10,7 +10,7 @@ A remake of Notch's 2009 Minecraft 4k as one self-extracting HTML file of at mos
 
 <table>
 <tr>
-<td width="50%"><img src="screenshots/mountains.webp" alt="Snow and grey stone on a grassy slope"><br><sub>Snow and grey stone on a grassy slope.</sub></td>
+<td width="50%"><img src="screenshots/mountains.webp" alt="Snowy terraces above grassy slopes, with a desert behind"><br><sub>Snowy plateaus above grassy terraces and a desert, seen from the air.</sub></td>
 <td width="50%"><img src="screenshots/sunset.webp" alt="A valley at sunset with a low sun and the first stars"><br><sub>Sunset: a low sun, long shadows and the first stars.</sub></td>
 </tr>
 <tr>
