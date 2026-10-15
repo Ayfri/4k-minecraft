@@ -155,7 +155,7 @@ fn f(q: vec2f) -> vec4f {
   let L = normalize(vec3f(cos(w), sin(w), .4));
   let D = saturate(L.y * 2 + .4);
   /** Sky gradient without sun or stars, also the colour distant terrain fades to. */
-  let sky = mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .015;
+  let sky = mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .002;
   let eyeIn = B(vec3i(floor(eye))) == WATER;
   var t = M(eye, d, u32(eyeIn) * WATER, 384);
   var wd = f32(eyeIn) * t;
@@ -187,7 +187,7 @@ fn f(q: vec2f) -> vec4f {
     col = X(K, u, n) * ((vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) + vec3f(.65, .5, .3) * saturate(L.y * 5) * max(dot(n, L), 0) * step(1e9, M(P + n * .01, L, WATER, 128))) * a * a;
     if ol { col = vec3f(1); }
   }
-  col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .2));
+  col = mix(col, vec3f(.05, .2, .5) * D + .003, 1 - exp(-wd * .2));
   if s < 1e9 { col = mix(col, sky, smoothstep(80, 200, s)); }
   /** Preview of the selected block, texels scaled 3x in a 48 px square 10 px from the bottom-right corner, with the transparent texels of plants, leaves and glass left out as in the world. */
   let v = vec2u(vec2i(q - U.r / 2 + 58)) / 3;
