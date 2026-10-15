@@ -124,7 +124,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
     k = F(t);
   } else if b > GLASS && b < BEDROCK && H(vec3u(t / 2, b)) < .8 { k = STONE; }
   let e = COLORS[k];
-  let c = vec3f(vec3u(e >> 8, e >> 4, e) % 16) / 15 * (m + (H(vec3u(t.x / 2, t.y, b)) - .5) * f32(e >> 12) / 8);
+  let c = vec3f(vec3u(e >> 8, e >> 4, e) % 16) / 15 * (m + (H(vec3u(t, b)) - .5) * f32(e >> 12) / 8);
   return c * c;
 }
 
