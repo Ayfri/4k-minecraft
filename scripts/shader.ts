@@ -1,5 +1,5 @@
 import * as world from '../src/world.ts';
-import { minifyWgsl, renameWgsl, substituteConstants } from './wgsl.ts';
+import { letToVar, minifyWgsl, renameWgsl, substituteConstants } from './wgsl.ts';
 
 const consts = Object.fromEntries(Object.entries(world).filter((e): e is [string, number] => typeof e[1] == 'number'));
 const CACHE = `${import.meta.dir}/../.cache/wgsl.json`;
@@ -17,7 +17,7 @@ async function cached(src: string) {
 	return out;
 }
 
-/** Reads a WGSL file with the numeric exports of `src/world.ts` substituted, then minified and renamed. */
+/** Reads a WGSL file with the numeric exports of `src/world.ts` substituted, then minified, `let` turned to `var` and renamed. */
 export async function shader(path: string) {
-	return cached(minifyWgsl(substituteConstants(await Bun.file(path).text(), consts)));
+	return cached(letToVar(minifyWgsl(substituteConstants(await Bun.file(path).text(), consts))));
 }

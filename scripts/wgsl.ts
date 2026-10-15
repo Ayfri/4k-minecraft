@@ -8,6 +8,9 @@ export const minifyWgsl = (s: string) =>
 		.replace(/\u0001/g, ' ')
 		.trim();
 
+/** `let` becomes `var` (one keyword, better matches), except where the value may be a pointer, which only a `let` can hold: an initializer starting with `&`, a bare name, or a `ptr<` type. */
+export const letToVar = (s: string) => s.replace(/\blet(?=\s+\w+(?::(?!ptr<)[^=;]*)?=(?!&|[A-Za-z_]\w*;))/g, 'var');
+
 const SHORT_RESERVED = new Set(['as', 'do', 'fn', 'if', 'in', 'of']);
 const LETTERS = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 const POOL = [...LETTERS, ...LETTERS.flatMap(a => [...LETTERS, ...'0123456789'].map(b => a + b))].filter(n => !SHORT_RESERVED.has(n));

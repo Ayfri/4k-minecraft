@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import * as world from '../src/world.ts';
 import { shader } from './shader.ts';
-import { assertRenamed, items, minifyWgsl, renameWgsl, substituteConstants } from './wgsl.ts';
+import { assertRenamed, items, letToVar, minifyWgsl, renameWgsl, substituteConstants } from './wgsl.ts';
 
 const MINIFY: [string, string, string][] = [
 	['line and block comments', 'let a = 1; // one\n/* two\nlines */ let b = 2;', 'let a=1;let b=2;'],
@@ -85,10 +85,24 @@ test('never produces a keyword, a reserved word or a duplicate over 300 names', 
 	}
 });
 
+const LET_TO_VAR: [string, string, string][] = [
+	['plain lets', 'fn f(){let a=1;let b:f32=a+2;}', 'fn f(){var a=1;var b:f32=a+2;}'],
+	['for initializer', 'fn f(){for(let i=0;i<4;i++){}}', 'fn f(){for(var i=0;i<4;i++){}}'],
+	['a bitwise and is not an address', 'fn f(){let a=b&c;}', 'fn f(){var a=b&c;}'],
+	['address-of stays a let', 'fn f(){let p=&x;let q=&(*p);}', 'fn f(){let p=&x;let q=&(*p);}'],
+	['pointer type stays a let', 'fn f(p:ptr<function,i32>){let q:ptr<function,i32>=p;}', 'fn f(p:ptr<function,i32>){let q:ptr<function,i32>=p;}'],
+	['a bare name may be a pointer, texture or sampler', 'fn f(p:ptr<function,i32>){let q=p;let r=q+1;}', 'fn f(p:ptr<function,i32>){let q=p;var r=q+1;}'],
+	['names that only contain let', 'fn f(){let letter=1;outlet(letter);}', 'fn f(){var letter=1;outlet(letter);}'],
+];
+
+test.each(LET_TO_VAR)('turns let into var: %s', (_name, src, expected) => {
+	expect(letToVar(src)).toBe(expected);
+});
+
 const deflated = (s: string) => Bun.deflateSync(s, { level: 12, library: 'libdeflate' }).length;
 
 test('the annealed rename is deterministic, a rename of the greedy one and never larger', async () => {
-	const src = minifyWgsl(substituteConstants(await Bun.file(`${import.meta.dir}/../src/shader.wgsl`).text(), Object.fromEntries(Object.entries(world).filter((e): e is [string, number] => typeof e[1] == 'number'))));
+	const src = letToVar(minifyWgsl(substituteConstants(await Bun.file(`${import.meta.dir}/../src/shader.wgsl`).text(), Object.fromEntries(Object.entries(world).filter((e): e is [string, number] => typeof e[1] == 'number')))));
 	const greedy = renameWgsl(src);
 	const annealed = renameWgsl(src, 300);
 	expect(renameWgsl(src, 300)).toBe(annealed);
