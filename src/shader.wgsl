@@ -20,16 +20,16 @@ const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3563, 0x5864, 0x2777, 0x1dca,
 /** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
 fn H(c: vec3u) -> f32 {
   let p = c & vec3u(MASK, TOP, MASK);
-  var h = ((p.x * 0x45d9f3b + p.y) * 0x45d9f3b + p.z) * 0x45d9f3b + 1;
+  var h = ((p.x * 73244475 + p.y) * 73244475 + p.z) * 73244475 + 1;
   h ^= h >> 16;
-  h *= 0x45d9f3b;
+  h *= 73244475;
   return f32(h ^ (h >> 16)) * 2.3e-10;
 }
 
 /** Voxel index of a cell, one byte per cell. */
 fn I(c: vec3i) -> u32 { return dot(vec3u(c) & vec3u(MASK, TOP, MASK), vec3u(1, LAYER, SIZE)); }
 
-/** The block at a cell: stone below the world, air above it, x and z wrap. */
+/** The block at a cell: stone below the world (the bottom layer can be broken), air above it, x and z wrap. */
 fn B(c: vec3i) -> u32 {
   if u32(c.y) > TOP { return u32(c.y < 0) * STONE; }
   let i = I(c);
@@ -53,7 +53,7 @@ fn look() -> vec3f {
 
 /** Texel (16x16 per face) of the point `P` on the face N of its cell. */
 fn A(P: vec3f) -> vec2u {
-  return vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
+  return vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y < 1))) * 16);
 }
 
 /** Colour index of the plant texel `u` of the cell C: blades for a tuft, a stem and a red or yellow head for a flower, 0 where transparent (plants only reach it through the diagonal planes of `M`). Leaves have holes, glass keeps its frame and a streak. */
@@ -81,7 +81,7 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
     if n < 99 && min(K, K ^ WATER) > 0 { return t; }
     if K > k {
       O = all(C == vec3i(S[1].xyz)) && any(abs(fract(P) - .5) * (1 - N) > vec3f(.48));
-      if O || (K > TUFT && F(A(P)) > 0) { return t; }
+      if (K > TUFT && F(A(P)) > 0) || O { return t; }
       if K < WATER {
         let p = P - vec3f(C);
         var b = 1e9;
@@ -105,9 +105,8 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
 
 /** Colour of texel `t` (16x16 per face) of block `b` seen from the side `n`, the same tile for every block of a type. */
 fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
-  var k = b;
-  var q = H(vec3u(t, b));
   var m = 1.;
+  var k = b;
   if b == GRASS {
     if n.y < 0 || (n.y == 0 && t.y > 1 + u32(H(vec3u(t.x, 7, b)) * 3)) { k = DIRT; }
   } else if b == LOG {
@@ -118,23 +117,23 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
       m = 1 - .25 * f32((r + 1) / 4 % 2);
     }
   } else if b == PLANKS {
-    if t.y % 4 > 2 || (t.x + t.y / 4 % 2 * 8) % 16 == 3 { m = .65; }
+    if (t.x + t.y / 4 % 2 * 8) % 16 == 3 || t.y % 4 > 2 { m = .65; }
   } else if b == BRICKS {
     if t.y % 4 > 2 || (t.x + t.y / 4 % 2 * 4) % 8 == 3 { k = STONE; }
   } else if b < WATER {
     k = F(t);
   } else if b > GLASS && H(vec3u(t / 2, b)) < .8 { k = STONE; }
   let e = COLORS[k];
-  let c = vec3f(vec3u(e >> 8, e >> 4, e) % 16) / 15 * (m + (q - .5) * f32(e >> 12) / 8);
+  let c = vec3f(vec3u(e >> 8, e >> 4, e) % 16) / 15 * (m + (H(vec3u(t, b)) - .5) * f32(e >> 12) / 8);
   return c * c;
 }
 
-/** Colour of the pixel at `q` (y down), its corner, so the crosshair arms are 1 px wide on an even canvas size and 2 px on an odd one. */
+/** Colour of the pixel whose corner is at `q` from the canvas centre (y down), so the crosshair arms are 1 px wide on an even canvas size and 2 px on an odd one. */
 fn f(q: vec2f) -> vec4f {
   let fw = look();
   let eye = S[0].xyz + HEAD;
   let r = normalize(vec3f(fw.z, 0, -fw.x));
-  let uv = (2 * q - U.r) / U.r.y;
+  let uv = 2 * q / U.r.y;
   let d = normalize(fw * 1.4 + r * uv.x + cross(r, fw) * uv.y);
   let w = U.t * .01047 + .3;
   let L = normalize(vec3f(cos(w), sin(w), .4));
@@ -150,7 +149,7 @@ fn f(q: vec2f) -> vec4f {
     wd = M(eye + d * (t + .01), d, WATER, 128) + .01;
     t += wd;
   }
-  var col = sky + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000) + step(.985, H(vec3u(d * 200 + 250))) * (1 - D);
+  var col = sky + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000) + (1 - D) * step(.985, H(vec3u(d * 200 + 250)));
   if K > 0 {
     let P = eye + d * t;
     /** Plants are lit as an upward face, their +x plane normal would flip with the side they are seen from. */
@@ -162,26 +161,25 @@ fn f(q: vec2f) -> vec4f {
       if r > 1 { u.x = 15 - u.x; }
     }
     let ol = O;
-    let al = X(K, u, n);
     var ao = 0.;
     for (var i = 0; i < 4; i++) {
       let o = C + vec3i(n) + vec3i(select(n.zxy, n.yzx, i > 1)) * (i % 2 * 2 - 1);
       if B(o) > WATER { ao += saturate(1.5 - distance(P, vec3f(o) + .5)); }
     }
-    col = al * ((vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3) + vec3f(.65, .5, .3) * saturate(L.y * 5) * max(dot(n, L), 0) * step(1e9, M(P + n * .01, L, WATER, 128)));
+    col = X(K, u, n) * ((vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3) + vec3f(.65, .5, .3) * saturate(L.y * 5) * max(dot(n, L), 0) * step(1e9, M(P + n * .01, L, WATER, 128)));
     if ol { col = abs(1 - col); }
   }
   col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .2));
   if s < 1e9 { col = mix(col, sky, smoothstep(60, 145, s)); }
   /** Preview of the selected block, texels scaled 3x in a 48 px square 10 px from the bottom-right corner, plants are transparent where their colour is black (no colour has a null red). */
-  let v = vec2u(vec2i(q - U.r + 58)) / 3;
+  let v = vec2u(vec2i(q - U.r / 2 + 58)) / 3;
   if (v.x | v.y) < 16 {
     K = u32(U.s);
     C = vec3i();
     let p = X(K, v, vec3f());
     if p.x > 0 { col = p; }
   }
-  let z = abs(q - U.r / 2);
+  let z = abs(q);
   let o = sqrt(col);
   return vec4f(select(o, 1 - o, min(z.x, z.y) < 1 && max(z.x, z.y) < 9), 1);
 }
@@ -201,8 +199,8 @@ fn Q(p: vec3f, c: f32) -> f32 {
 }
 
 /** Height of the terrain column at x, z. */
-fn T(x: u32, z: u32) -> f32 {
-  let p = vec3f(vec3u(x, 0, z));
+fn T(c: vec2u) -> f32 {
+  let p = vec3f(vec3u(c, 0).xzy);
   let m = pow(Q(p + vec3f(844, 0, 0), 512), 3);
   var e = 0.;
   for (var c = 256.; c > 8; c *= .5) { e += Q(p, c) * c / 512; }
@@ -269,34 +267,31 @@ fn tick() {
     return;
   }
   if U.r.x > 0 {
-    textureStore(Z, u.xy, f(vec2f(u.xy)));
+    textureStore(Z, u.xy, f(vec2f(u.xy) - U.r / 2));
     return;
   }
-  let z = u.x >> 8;
   for (var k = 0u; k < 4; k++) {
-    let x = (u.x & 255) * 4 + k;
-    let h = T(x, z);
-    let desert = h < 70 && Q(vec3f(vec3u(x + 128, 0, z + 128)), 256) > .7;
-    let t = vec2u(x, z) / 8;
+    let e = vec2u(u.x % 256 * 4 + k, u.x >> 8);
+    let h = T(e);
+    let desert = h < 70 && Q(vec3f(vec3u(e + 128, 0).xzy), 256) > .7;
+    let t = e / 8;
     let r = H(vec3u(t.x, 99, t.y));
-    let tx = t.x * 8 + 2 + u32(r * 40) % 4;
-    let tz = t.y * 8 + 2 + u32(r * 400) % 4;
-    let th = T(tx, tz);
-    let tree = r < .3 && th > SHORE && th < 75 && !desert;
+    let s = t * 8 + 2 + vec2u(r * vec2f(40, 400)) % 4;
+    let th = T(s);
     var below = 0u;
     for (var y = 0u; y < HEIGHT; y++) {
-      let c = vec3u(x, y, z);
+      let c = vec3u(e, y).xzy;
       let p = vec3f(c);
       let q = H(c);
-      let d = p - vec3f(f32(tx), th + 4, f32(tz));
+      let d = p - vec3f(vec2f(s), th + 4).xzy;
       var b = 0u;
       if p.y > h {
-        if tree && d.x == 0 && d.z == 0 && d.y > -4 && d.y < 1 { b = LOG; }
-        else if tree && abs(d.y + .5) < 2 && dot(d, d) < 5.5 - q { b = LEAVES; }
-        else if below == GRASS && q < .3 { b = 1 + u32(q > .05); }
+        if r < .3 && th < 75 && th > SHORE && !desert && d.x == 0 && d.z == 0 && d.y < 1 && d.y > -4 { b = LOG; }
+        else if r < .3 && th < 75 && th > SHORE && !desert && abs(d.y + .5) < 2 && dot(d, d) < 5.5 - q { b = LEAVES; }
+        else if q < .3 && below == GRASS { b = 1 + u32(q > .05); }
         else if p.y <= SEA { b = WATER; }
       } else {
-        let beach = h <= SHORE || desert;
+        let beach = desert || h <= SHORE;
         let w = u32(h > 80 + q * 8);
         b = GRASS + w * 2;
         if h > 95 + q * 6 { b = SNOW; }
@@ -309,7 +304,7 @@ fn tick() {
         if y > 0 && !(beach && p.y > h - 3) && Q(p, 32) > .78 { b = AIR; }
       }
       below = b;
-      W[u.x | (y << 18)] |= b << (k * 8);
+      W[(y << 18) + u.x] |= b << (k * 8);
     }
   }
   if u.x < 1 { S[0] = vec4f(434.5, 100, 511.5, 0); }
