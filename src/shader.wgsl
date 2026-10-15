@@ -155,7 +155,7 @@ fn f(q: vec2f) -> vec4f {
   let L = normalize(vec3f(cos(w), sin(w), .4));
   let D = saturate(L.y * 2 + .4);
   /** Sky gradient without sun or stars, also the colour distant terrain fades to. */
-  let sky = mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .002;
+  let sky = mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + 3e-4;
   let eyeIn = B(vec3i(floor(eye))) == WATER;
   var t = M(eye, d, u32(eyeIn) * WATER, 384);
   var wd = f32(eyeIn) * t;
@@ -165,7 +165,7 @@ fn f(q: vec2f) -> vec4f {
     wd = M(eye + d * (t + .01), d, WATER, 128) + .01;
     t += wd;
   }
-  var col = sky + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000) + (1 - D) * step(.985, H(vec3u(d * 200 + 250)));
+  var col = sky + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000) + (1 - D) * .35 * step(.985, H(vec3u(d * 200 + 250)));
   if K > 0 {
     let P = eye + d * t;
     /** Plants are lit as an upward face, their +x plane normal would flip with the side they are seen from. */
