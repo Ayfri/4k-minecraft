@@ -187,6 +187,8 @@ export class Deflater {
 	/** Per position, the earlier distances that match at least 3 bytes and how long. */
 	private readonly matches: { d: number[]; l: number[] }[];
 	private readonly bad = new Uint8Array(256);
+	/** How many bytes come before the first one that a match can start at (the data length when none can). */
+	readonly lead: number;
 
 	constructor(readonly data: Uint8Array) {
 		const n = data.length;
@@ -201,6 +203,8 @@ export class Deflater {
 			}
 			[prev, cur] = [cur, prev];
 		}
+		const lead = this.matches.findIndex(m => m.d.length);
+		this.lead = lead < 0 ? n : lead;
 	}
 
 	/** A model from the symbol counts of a result, symbols it never used get `spare` bits when set (exploring) and are unavailable otherwise. */
@@ -268,22 +272,22 @@ export class Deflater {
 	}
 
 	/** The cheapest stream under `model`: bit phases within `slack` bits of the best at each node are kept, `ways` distances per match length, `avoid` are byte values the stream must not contain. The first header that leads to a valid stream wins. */
-	run(model: Model, options = {} as { avoid?: number[]; slack?: number; ways?: number }): Result | undefined {
+	run(model: Model, options = {} as { avoid?: number[]; slack?: number; ways?: number; until?: number }): Result | undefined {
 		this.bad.fill(0);
 		for (const b of options.avoid ?? []) this.bad[b] = 1;
 		let body: Edges | undefined;
 		for (const head of this.headers(model)) {
-			body ??= this.body(model, head.m, options.ways ?? 4);
-			const result = this.walk(head, body, options.slack ?? 12);
+			body ??= this.body(model, head.m, options.ways ?? 4, options.until);
+			const result = this.walk(head, body, options.slack ?? 12, options.until);
 			if (result) return result;
 		}
 	}
 
-	/** The edges of the data nodes `m..m + length + 1` under `model`: they do not depend on the header, only on where it ends. */
-	private body(model: Model, m: number, ways: number) {
+	/** The edges of the data nodes `m..m + until` (all of them and the end node by default) under `model`: they do not depend on the header, only on where it ends. */
+	private body(model: Model, m: number, ways: number, until = this.data.length + 1) {
 		const { data } = this;
 		const edges = new Edges();
-		const n = data.length;
+		const n = Math.min(until, data.length);
 		const { dist: dists, lit: lits } = model;
 		const litCodes = codes(lits);
 		const distCodes = codes(dists);
@@ -310,14 +314,14 @@ export class Deflater {
 				}
 			}
 		}
-		const last = m + n;
-		edges.push(last, last + 1, litCodes[EOB]!, lits[EOB]!, { lit: EOB });
+		if (until > data.length) edges.push(m + n, m + n + 1, litCodes[EOB]!, lits[EOB]!, { lit: EOB });
 		return edges;
 	}
 
-	private walk({ edges: header, m, prefix, start }: Head, body: Edges, slack: number): Result | undefined {
+	/** The stream of the best path to the end node, or with `until` only a stub when some stream gets past the first `until` bytes of data. */
+	private walk({ edges: header, m, prefix, start }: Head, body: Edges, slack: number, until = this.data.length + 1): Result | undefined {
 		const edges = header.concat(body);
-		const end = m + this.data.length + 1;
+		const end = m + until;
 		const total = end + 1;
 		const first = new Int32Array(total + 1).fill(edges.from.length);
 		for (let e = edges.from.length - 1; e >= 0; e--) first[edges.from[e]!] = e;
@@ -345,6 +349,7 @@ export class Deflater {
 			}
 		}
 
+		if (until <= this.data.length) return cost.subarray(end * 256, end * 256 + 256).some(c => c < INF) ? ALIVE : undefined;
 		let best = -1;
 		for (let s = 1; s < 256; s++) if (this.pad(s) >= 0 && cost[end * 256 + s]! < (best < 0 ? INF : cost[end * 256 + best]!)) best = s;
 		if (best < 0) return undefined;
@@ -380,8 +385,11 @@ export class Deflater {
 	}
 }
 
-/** How many literal code length swaps `search` tries when the optimal code has no valid stream. */
-const SWAPS = 16;
+/** How many literal code length swaps `search` probes when the optimal code has no valid stream, and how many of the probes that pass it then runs in full. */
+const SWAPS = 400;
+const FULL = 8;
+/** What a probe returns when some stream gets through. */
+const ALIVE: Result = { bits: 0, bytes: new Uint8Array(), cl: [], dist: [], lit: [] };
 
 interface Counts {
 	dist: number[];
@@ -399,14 +407,18 @@ export function search(data: Uint8Array, avoid = [0, 13], rounds = 4, { slack = 
 	const free = deflater.run(model, { slack: 0, ways: 1 })!;
 	const optimal = Deflater.model(free);
 	let cur = deflater.run(optimal, opts);
-	/** A stretch of literals before the first match has one path, so a forbidden byte on it kills every stream under this code. Exchanging the lengths of two literals (the cheapest exchanges first) gives that stretch other codes. */
+	/** The literals before the first match have one path, so a forbidden byte on it kills every stream under this code, about 1 code in 250 gets through 140 of them. Exchanging the lengths of two literals (the cheapest exchanges first) gives them other codes, and a probe of the first bytes tells cheaply which codes are worth a full run. */
 	const used = Array.from(optimal.lit.keys()).filter(s => optimal.lit[s]);
 	const exchanges = used.flatMap(x => used.filter(y => y > x && optimal.lit[x] !== optimal.lit[y]).map((y): [number, number] => [x, y]));
 	const price = ([x, y]: [number, number]) => (free.lit[x]! - free.lit[y]!) * (optimal.lit[y]! - optimal.lit[x]!);
+	const until = deflater.lead + 256;
+	let full = 0;
 	for (const [x, y] of cur ? [] : exchanges.sort((p, q) => price(p) - price(q)).slice(0, SWAPS)) {
 		const lit = optimal.lit.slice();
 		[lit[x], lit[y]] = [lit[y]!, lit[x]!];
-		if ((cur = deflater.run({ dist: optimal.dist, lit }, opts))) break;
+		const swapped = { dist: optimal.dist, lit };
+		if (until < data.length && !deflater.run(swapped, { ...opts, until })) continue;
+		if ((cur = deflater.run(swapped, opts)) || ++full === FULL) break;
 	}
 	let best = cur;
 	let seed = start;
