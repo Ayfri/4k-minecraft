@@ -19,8 +19,9 @@ const ctx = c.getContext('webgpu')!;
 ctx.configure({ device, format: 'rgba8unorm', usage: 8 });
 const module = device.createShaderModule({ code: shader });
 
-/** The voxels, one byte per cell, and the player state in its first words: the shader owns both. */
-const world = device.createBuffer({ size: BYTES, usage: 140 });
+/** The voxels, one byte per cell, and the 32 bytes of player state: the shader owns both. */
+const world = device.createBuffer({ size: BYTES, usage: 132 });
+const state = device.createBuffer({ size: 32, usage: 132 });
 const pipeline = device.createComputePipeline({ compute: { module }, layout: 'auto' });
 
 /** The `Uniforms` immediates: view angles, canvas size (0 while the world generates), forward, right, jump, click, time, frame time. */
@@ -31,7 +32,7 @@ const run = (x: number, y = 1) => {
 	const encoder = device.createCommandEncoder();
 	const pass = encoder.beginComputePass();
 	pass.setPipeline(pipeline);
-	pass.setBindGroup(0, device.createBindGroup({ entries: [{ binding: 0, resource: world }, { binding: 1, resource: ctx.getCurrentTexture() }], layout: pipeline.getBindGroupLayout(0) }));
+	pass.setBindGroup(0, device.createBindGroup({ entries: [{ binding: 0, resource: world }, { binding: 1, resource: ctx.getCurrentTexture() }, { binding: 2, resource: state }], layout: pipeline.getBindGroupLayout(0) }));
 	pass.setImmediates(0, data);
 	pass.dispatchWorkgroups(x, y);
 	pass.dispatchWorkgroups(1);
@@ -74,14 +75,14 @@ if (DEV) {
 	for (const m of (await module.getCompilationInfo()).messages) console.log(`wgsl ${m.type} ${m.lineNum}: ${m.message}`);
 	console.log(`gen ${(performance.now() - t0).toFixed(1)} ms`);
 	const probe = device.createBuffer({ size: 64, usage: 9 });
-	const state = async (cell = 0) => {
+	const peek = async () => {
 		const encoder = device.createCommandEncoder();
-		encoder.copyBufferToBuffer(world, cell & ~3, probe, 0, 64);
+		encoder.copyBufferToBuffer(state, 0, probe, 0, 32);
 		queue.submit([encoder.finish()]);
 		await probe.mapAsync(1);
-		const bytes = probe.getMappedRange().slice(0);
+		const f = [...new Float32Array(probe.getMappedRange().slice(0))];
 		probe.unmap();
-		return { f: [...new Float32Array(bytes, 0, 5)], hit: new Uint32Array(bytes)[5] };
+		return f;
 	};
-	Object.assign(globalThis, { dbg: { A, state } });
+	Object.assign(globalThis, { dbg: { A, peek } });
 }

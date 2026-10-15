@@ -3,6 +3,8 @@ struct Uniforms { a: vec2f, r: vec2f, k: vec4f, t: f32, d: f32 }
 @group(0) @binding(0) var<storage, read_write> W: array<u32>;
 /** The canvas texture, written by the render branch of `g`. */
 @group(0) @binding(1) var Z: texture_storage_2d<rgba8unorm, write>;
+/** The player state: feet and vertical speed, then the targeted cell (-9 for none) and the contact (2 when the feet landed, 1 against a wall). */
+@group(0) @binding(2) var<storage, read_write> S: array<vec4f, 2>;
 var<immediate> U: Uniforms;
 
 var<private> C: vec3i;
@@ -34,14 +36,10 @@ fn B(c: vec3i) -> u32 {
 
 /** Sets the block of a cell, one invocation edits so no atomics are needed. The bottom layer holds the player state in its first words and stays untouched. */
 fn edit(c: vec3i, b: u32) {
-  if u32(c.y - 1) >= TOP { return; }
   let i = I(c);
   let s = i % 4 * 8;
   W[i >> 2] = (W[i >> 2] & ~(255u << s)) | (b << s);
 }
-
-/** The player state, words 0 to 5 of the world: feet x y z and vertical speed (f32), contact (f32, 2 landed, 1 wall) and the targeted cell index (u32, -1 for none). */
-fn feet() -> vec3f { return bitcast<vec3f>(vec3u(W[0], W[1], W[2])); }
 
 /** View direction from the yaw and pitch. */
 fn look() -> vec3f {
@@ -79,7 +77,7 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
     let P = o + d * t;
     if n < 99 && min(K, K ^ WATER) > 0 { return t; }
     if K > k {
-      O = I(C) == W[5] && any(abs(fract(P) - .5) * (1 - N) > vec3f(.48));
+      O = all(C == vec3i(S[1].xyz)) && any(abs(fract(P) - .5) * (1 - N) > vec3f(.48));
       if O || (K > TUFT && F(A(P)) > 0) { return t; }
       if K < WATER {
         let p = P - vec3f(C);
@@ -131,7 +129,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
 /** Colour of the pixel at `q` (y down), its corner, so the crosshair arms are 1 px wide on an even canvas size and 2 px on an odd one. */
 fn f(q: vec2f) -> vec4f {
   let fw = look();
-  let eye = feet() + vec3f(0, 1.62, 0);
+  let eye = S[0].xyz + vec3f(0, 1.62, 0);
   let r = normalize(vec3f(fw.z, 0, -fw.x));
   let uv = (2 * q - U.r) / U.r.y;
   let d = normalize(fw * 1.4 + r * uv.x + cross(r, fw) * uv.y);
@@ -210,9 +208,9 @@ fn hits(p: vec3f) -> bool {
 
 /** One frame of the player: walk, swim, jump and fall with a per-axis collision (the contact is 2 when the feet landed, 1 against a wall), then the targeting march (reach 6) and the click of the frame. */
 fn tick() {
-  var p = feet();
-  let vy = bitcast<f32>(W[3]);
-  var contact = bitcast<f32>(W[4]);
+  var p = S[0].xyz;
+  let vy = S[0].w;
+  var contact = S[1].w;
   let w = B(vec3i(floor(p))) == WATER;
   let d = look();
   let a = normalize(d.xz);
@@ -234,13 +232,9 @@ fn tick() {
       v[i] = 0;
     }
   }
-  W[0] = bitcast<u32>(p.x);
-  W[1] = bitcast<u32>(p.y);
-  W[2] = bitcast<u32>(p.z);
-  W[3] = bitcast<u32>(v.y);
-  W[4] = bitcast<u32>(contact);
+  S[0] = vec4f(p, v.y);
   let t = M(p + vec3f(0, 1.62, 0), d, WATER, 16);
-  W[5] = select(0xffffffffu, I(C), t < 6);
+  S[1] = vec4f(select(vec3f(-9), vec3f(C), t < 6), contact);
   let b = i32(U.k.w);
   if t >= 6 || b == 0 { return; }
   let u = C + vec3i(0, 1, 0);
@@ -307,6 +301,5 @@ fn tick() {
       W[u.x | (y << 18)] |= b << (k * 8);
     }
   }
-  /** The spawn is the first player state, the other words start as bottom-layer stone, a speed and contact near 0. */
-  if u.x < 3 { W[u.x] = bitcast<u32>(vec3f(434.5, 100, 511.5)[u.x]); }
+  if u.x < 1 { S[0] = vec4f(434.5, 100, 511.5, 0); }
 }
