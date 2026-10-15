@@ -89,6 +89,9 @@ export function renderer(parts: Part[], hole?: string) {
 
 const deflated = (js: string) => Bun.deflateSync(new TextEncoder().encode(js), { level: 12, library: 'libdeflate' }).length;
 
+/** Annealing steps of the script's own names once the shader is fixed (a few seconds, each step is a deflate of the script). */
+const STEPS = 10000;
+
 /** A WGSL shader (`src`) that is the string `JSON.stringify(src)` of the script: its names are annealed (`rounds` steps of one `seed`) against the size of the whole script. */
 export interface Shader {
 	rounds: number;
@@ -96,7 +99,7 @@ export interface Shader {
 	src: string;
 }
 
-/** Coordinate descent over the names, then pairwise swaps, against the libdeflate size of the script, from the names the bindings already have, then with a `shader` the annealing of its names against the script around it and one more descent for the script. */
+/** Coordinate descent over the names, then pairwise swaps, against the libdeflate size of the script, from the names the bindings already have, then with a `shader` the annealing of its names against the script around it and one more descent and an annealing of the script's names. */
 export function chooseNames(parts: Part[], bindings: Bindings, rounds = 2, shader?: Shader) {
 	const render = renderer(parts, shader && JSON.stringify(shader.src));
 	const names = bindings.initial();
@@ -132,6 +135,33 @@ export function chooseNames(parts: Part[], bindings: Bindings, rounds = 2, shade
 		const at = js.indexOf(HOLE);
 		literal = JSON.stringify(renameWgsl(shader.src, shader.rounds, [`${js.slice(0, at)}"`, `"${js.slice(at + 1)}`], shader.seed));
 		descend();
+		/** Annealing steps of single names, the swap with the one binding of its conflicts that has the name when there is one. */
+		let seed = shader.seed ?? 1;
+		const random = () => {
+			let t = (seed = (seed + 0x6d2b79f5) | 0);
+			t = Math.imul(t ^ (t >>> 15), t | 1);
+			t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+			return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
+		};
+		let current = best;
+		let bestNames = [...names];
+		for (let step = 0; step < STEPS; step++) {
+			const i = Math.floor(random() * names.length);
+			const name = POOL[Math.floor(random() * POOL.length)]!;
+			const old = names[i]!;
+			if (name === old) continue;
+			const clash = [...bindings.conflicts[i]!].filter(j => names[j] === name);
+			if (clash.length > 1) continue;
+			const [j] = clash;
+			names[i] = name;
+			if (j !== undefined) names[j] = old;
+			const size = bindings.free(i, name, names) && (j === undefined || bindings.free(j, old, names)) ? deflated(full()) : Infinity;
+			if (size <= current || random() < Math.exp((current - size) / (0.5 * (0.05 / 0.5) ** (step / STEPS)))) {
+				current = size;
+				if (size < best) (best = size), (bestNames = [...names]);
+			} else (names[i] = old), j !== undefined && (names[j] = name);
+		}
+		bestNames.forEach((n, i) => (names[i] = n));
 	}
 	return full();
 }
