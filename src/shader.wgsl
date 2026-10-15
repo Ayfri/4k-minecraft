@@ -15,7 +15,7 @@ var<private> K: u32;
 /** Whether `M` stopped on the outline band of the targeted cell. */
 var<private> O: bool;
 
-const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3573, 0x5864, 0x3777, 0x1edb, 0x6753, 0x8351, 0x1a85, 0x0b65, 0x0def, 0x1ade, 0x6333, 0x4a87, 0x46bb, 0xc555);
+const COLORS = array(0u, 0x4c22, 0x4573, 0x4ec4, 0x3573, 0x5864, 0x2777, 0x1edb, 0x6753, 0x8351, 0x1a85, 0x0b65, 0x0def, 0x1ade, 0x6333, 0x4a87, 0x46bb, 0xc555);
 
 /** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
 fn H(c: vec3u) -> f32 {
@@ -73,7 +73,7 @@ fn F(u: vec2u) -> u32 {
   return 0;
 }
 
-/** Amanatides-Woo march past blocks up to `k`, returns the distance and leaves cell, face and block in C, N, K. Leaves and glass stop on opaque face texels, plants on the opaque texels of the two diagonal planes `x = z` and `x + z = 1` of their cell (N is then +x), any block on the outline band of the targeted cell. Under 99 steps it is the targeting march and stops on any whole cell that is neither air nor water. */
+/** Amanatides-Woo march past blocks up to `k`, returns the distance and leaves cell, face and block in C, N, K. Leaves and glass stop on opaque face texels, plants on the opaque texels of the two diagonal planes `x = z` and `x + z = 1` of their cell (N is then +x), any block on the outline band of the targeted cell, both skipped in the start cell (no entry face there, a shadow ray leaving a face under glass would read its frame row or outline). Under 99 steps it is the targeting march and stops on any whole cell that is neither air nor water. */
 fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   let s = sign(d);
   let r = 1 / (abs(d) + 1e-6);
@@ -86,8 +86,8 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
     let P = o + d * t;
     if n < 99 && min(K, K ^ WATER) > 0 { return t; }
     if K > k {
-      O = all(C == vec3i(S[1].xyz)) && any(abs(fract(P) - .5) * (1 - N) > vec3f(.48));
-      if (K > TUFT && F(A(P)) > 0) || O { return t; }
+      O = all(C == vec3i(S[1].xyz)) && any(abs(fract(P) - .5) * (1 - N) > vec3f(.49));
+      if i > 0 && ((K > TUFT && F(A(P)) > 0) || O) { return t; }
       if K < WATER {
         let p = P - vec3f(C);
         var b = 1e9;
@@ -157,7 +157,7 @@ fn f(q: vec2f) -> vec4f {
   /** Sky gradient without sun or stars, also the colour distant terrain fades to. */
   let sky = mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .015;
   let eyeIn = B(vec3i(floor(eye))) == WATER;
-  var t = M(eye, d, u32(eyeIn) * WATER, 256);
+  var t = M(eye, d, u32(eyeIn) * WATER, 384);
   var wd = f32(eyeIn) * t;
   /** Fog distance: to the water surface for water pixels, 0 under water where only the water tint applies. */
   let s = t - wd;
@@ -185,17 +185,16 @@ fn f(q: vec2f) -> vec4f {
       if i != 4 && b > WATER && b != GLASS && K != GLASS { a -= saturate(1.5 - distance(P, vec3f(o) + .5)) * .3; }
     }
     col = X(K, u, n) * ((vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) + vec3f(.65, .5, .3) * saturate(L.y * 5) * max(dot(n, L), 0) * step(1e9, M(P + n * .01, L, WATER, 128))) * a * a;
-    if ol { col = abs(1 - col); }
+    if ol { col = vec3f(1); }
   }
   col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .2));
-  if s < 1e9 { col = mix(col, sky, smoothstep(60, 145, s)); }
-  /** Preview of the selected block, texels scaled 3x in a 48 px square 10 px from the bottom-right corner, plants are transparent where their colour is black (no colour has a null red). */
+  if s < 1e9 { col = mix(col, sky, smoothstep(80, 200, s)); }
+  /** Preview of the selected block, texels scaled 3x in a 48 px square 10 px from the bottom-right corner, with the transparent texels of plants, leaves and glass left out as in the world. */
   let v = vec2u(vec2i(q - U.r / 2 + 58)) / 3;
   if (v.x | v.y) < 16 {
     K = u32(U.s);
     C = vec3i();
-    let p = X(K, v, vec3f());
-    if p.x > 0 { col = p; }
+    if F(v) > 0 { col = X(K, v, vec3f()); }
   }
   let z = abs(q);
   let o = sqrt(col);
