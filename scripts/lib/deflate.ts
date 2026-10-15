@@ -386,8 +386,8 @@ export class Deflater {
 }
 
 /** How many literal code length swaps `search` probes when the optimal code has no valid stream, and how many of the probes that pass it then runs in full. */
-const SWAPS = 400;
-const FULL = 8;
+const SWAPS = 300;
+const FULL = 6;
 /** What a probe returns when some stream gets through. */
 const ALIVE: Result = { bits: 0, bytes: new Uint8Array(), cl: [], dist: [], lit: [] };
 
@@ -455,9 +455,8 @@ export function search(data: Uint8Array, avoid = [0, 13], rounds = 4, { slack = 
 		return out;
 	};
 	const steps = Math.min(2000, data.length >> 2);
-	for (let round = 0; round < rounds; round++) {
-		const src = cur ?? best ?? free;
-		const f: Counts = { dist: src.dist, lit: src.lit };
+	for (let round = 0; best && round < rounds; round++) {
+		const f: Counts = { dist: (cur ?? best).dist, lit: (cur ?? best).lit };
 		let g: Counts = { dist: f.dist.slice(), lit: f.lit.slice() };
 		let c = cost(g, f);
 		for (let i = 0; i < steps; i++) {

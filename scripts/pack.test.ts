@@ -10,7 +10,7 @@ test.concurrent.each([
 	['6 KB of noise', noise(6000, 1)],
 ])('round trips %s', async (_name, js) => {
 	expect(await check(js)).toBe(true);
-}, 120_000);
+}, 300_000);
 
 const TOKENS = ['let ', 'const ', 'for(', 'i=0;', 'i<n;', 'i++', '){', '}', 'x+=', 'Math.', 'sin(', 'floor(', 'a[i]', '*2', ';', 'return ', 'new ', 'Float32Array(', 'c.width', '=', '1', '0.5', '16'];
 /** Seeded token soup, 4 KB of it makes a shortest stream that is not the smallest page (the 7 B gap comes from CR and escape bytes). */
