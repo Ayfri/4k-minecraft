@@ -190,7 +190,7 @@ export class Bot {
 			const hit = this.game.hit;
 			if (hit?.[0] !== a.hit[0] || hit[1] !== a.hit[1]) continue;
 			if (kind == 'place' && this.game.select() != want) this.select(want);
-			this.game.act(kind == 'place' ? 2 : 0);
+			await this.game.act(kind == 'place' ? 2 : 0);
 			return V[idx(...cell)] == want;
 		}
 		return false;
@@ -211,7 +211,7 @@ export class Bot {
 				const hit = this.game.hit;
 				/** A plant in the feet cell stops the ray itself, and placing over it replaces it. */
 				if (P[1] > feet + 1.05 && hit && ((hit[0] == below && hit[1] == here) || hit[0] == here)) {
-					this.game.act(2);
+					await this.game.act(2);
 					placed = V[here] == DIRT;
 				}
 			}
@@ -234,7 +234,7 @@ export class Bot {
 			if (V[top]) {
 				await this.step();
 				if (this.game.hit?.[0] != top) this.fail(`descend: not standing on ${cellOf(top)}`);
-				else this.game.act(0);
+				else await this.game.act(0);
 			}
 			for (let f = 0; f < JUMP && !(Number.isInteger(P[1]) && !this.game.v[1]); f++) await this.step();
 		}

@@ -206,6 +206,30 @@ describe('target', () => {
 		expect(target(V, eye, [0, 0, 1])).toEqual([idx(100, 12, 98), idx(100, 12, 97)]);
 	});
 
+	test('reaches a face 5.9 blocks away and not 6.1', () => {
+		const V = flat(10);
+		V[idx(100, 12, 101)] = STONE;
+		expect(target(V, [100.5, 12.5, 95.1], [0, 0, 1])).toEqual([idx(100, 12, 101), idx(100, 12, 100)]);
+		expect(target(V, [100.5, 12.5, 94.9], [0, 0, 1])).toBeUndefined();
+	});
+
+	test('walks a slanted ray cell by cell, the free cell shares a face with the hit', () => {
+		const V = flat(10);
+		V[idx(102, 11, 102)] = STONE;
+		expect(target(V, [100.2, 12.9, 100.3], [.6, -.5, .6])).toEqual([idx(102, 11, 102), idx(101, 11, 102)]);
+	});
+
+	test('inside a solid cell the hit and the free cell are that cell', () => {
+		const V = flat(10);
+		expect(target(V, [100.5, 9.5, 100.5], [1, 0, 0])).toEqual([idx(100, 9, 100), idx(100, 9, 100)]);
+	});
+
+	test('sees the stone below the world and nothing above it', () => {
+		const V = flat(10);
+		expect(target(V, [100.5, 0.5, 100.5], [0, -1, 0])).toEqual([idx(100, 0, 100), idx(100, 0, 100)]);
+		expect(target(V, [100.5, HEIGHT - .5, 100.5], [0, 1, 0])).toBeUndefined();
+	});
+
 	test('wraps over the seam', () => {
 		const V = flat(10);
 		V[idx(1, 12, 100)] = STONE;

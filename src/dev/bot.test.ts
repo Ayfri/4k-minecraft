@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { BYTES, collides, DIRT, FLOWER, GLASS, GRASS, idx, LAYER, LEAVES, LOG, lift, move, SIZE, STONE, target, type Vec3, WATER } from '../world.ts';
 import { Bot } from './bot.ts';
-/** Mirrors the frame loop, `act` and the digit rule of `main.ts` (the keys, `lift`, `move`, `target`, the `collides` revert), driven one fixed step at a time. */
+/** Mirrors the player step and the click of the shader and the digit rule of `main.ts` (the keys, `lift`, `move`, `target`, the `collides` revert), driven one fixed step at a time. */
 class FakeGame implements Dbg {
 	A: [number, number] = [0, 0];
+	readonly drift = { frames: 0, hits: 0, max: 0 };
 	V: Uint8Array;
 	P: Vec3;
 	v: Vec3 = [0, 0, 0];
@@ -49,6 +50,8 @@ class FakeGame implements Dbg {
 	select(block = this.selected) {
 		return (this.selected = block);
 	}
+
+	sync = async () => {};
 
 	time = (seconds: number) => seconds;
 

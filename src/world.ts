@@ -1,4 +1,4 @@
-/** Numeric exports are substituted by name into `shader.wgsl` at build time. */
+/** Numeric exports are substituted by name into `shader.wgsl` at build time. The functions are the CPU reference of the shader's player step and targeting (`tick`, `hits`, `M`), never shipped: the tests, the bot planner and the DEV drift check use them. */
 export const SIZE = 1024;
 export const MASK = SIZE - 1;
 export const HEIGHT = 128;
@@ -68,12 +68,28 @@ export const lift = (V: Uint8Array, p: Vec3, vy: number, dt: number, jump: numbe
 	return swim ? (jump ? (contact ? 8.5 : 3) : Math.max(vy - 8.4 * dt, -2)) : jump && contact > 1 ? 8.5 : Math.max(vy - 28 * dt, -30);
 };
 
-/** Marches 6 blocks along `dir` from `eye`, returns the first solid or plant cell and the cell before it (-1 when the eye is inside). */
+/**
+ * The reference of the targeting march of the shader (`M` with under 99 steps): an exact cell walk along `dir` from `eye`, returns the first cell that is neither air nor water
+ * (stone below the world) whose entry is within 6 blocks, and the cell the ray came from (the hit cell itself when the eye is inside it).
+ */
 export const target = (V: Uint8Array, eye: Vec3, dir: Vec3): [hit: number, place: number] | undefined => {
-	let place = -1;
-	for (let t = 0; t < 6; t += .02) {
-		const i = idx(eye[0] + dir[0] * t, eye[1] + dir[1] * t, eye[2] + dir[2] * t);
-		if (V[i]! && V[i]! - WATER) return [i, place];
-		place = i;
+	const cell = eye.map(Math.floor) as Vec3;
+	const step = dir.map(Math.sign);
+	const r = dir.map(d => 1 / (Math.abs(d) + 1e-6));
+	const e = r.map((k, a) => (step[a]! * (cell[a]! - eye[a]! + .5) + .5) * k);
+	let axis = -1;
+	for (let i = 0; i < 16; i++) {
+		const t = axis < 0 ? 0 : e[axis]! - r[axis]!;
+		if (t >= 6) return;
+		const block = cell[1]! < 0 ? STONE : cell[1]! > TOP ? 0 : V[idx(...cell)]!;
+		const at = idx(cell[0]!, cell[1]! & TOP, cell[2]!);
+		if (block && block != WATER) {
+			if (axis < 0) return [at, at];
+			cell[axis]! -= step[axis]!;
+			return [at, idx(cell[0]!, cell[1]! & TOP, cell[2]!)];
+		}
+		axis = e[0]! < e[1]! && e[0]! <= e[2]! ? 0 : e[1]! <= e[2]! ? 1 : 2;
+		e[axis]! += r[axis]!;
+		cell[axis]! += step[axis]!;
 	}
 };
