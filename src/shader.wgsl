@@ -61,7 +61,7 @@ fn F(u: vec2u) -> u32 {
   if K == GLASS { return u32(any(u % 15 == vec2u()) || (u.x + u.y == 6 && u.x - 2 < 3)); }
   if K > TUFT { return u32(K != LEAVES || H(vec3u(u, K)) > .3); }
   let a = abs(i32(u.x) * 2 - 15);
-  if K == TUFT { return K * u32(u.y > 1 + u32(H(vec3u(u.x, 3, 3)) * 10) && (u.y > 11 || (u.x & 1) > 0)); }
+  if K == TUFT { return K * u32(u.y > 1 + u32(H(vec3u(u.x, 3, 3)) * 10) && (u.y > 11 || (u.x & 1) > 0) && a < i32(u.y) + 5); }
   if a < 2 && u.y > 9 { return GRASS; }
   if a + abs(i32(u.y) - 7) * 2 < 7 { return 1 + u32(H(vec3u(C.zyx)) * 2) * 2; }
   return 0;
