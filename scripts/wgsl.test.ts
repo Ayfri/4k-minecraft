@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import * as world from '../src/world.ts';
 import { shader } from './shader.ts';
-import { minifyWgsl, renameWgsl, substituteConstants } from './wgsl.ts';
+import { assertRenamed, items, minifyWgsl, renameWgsl, substituteConstants } from './wgsl.ts';
 
 const MINIFY: [string, string, string][] = [
 	['line and block comments', 'let a = 1; // one\n/* two\nlines */ let b = 2;', 'let a=1;let b=2;'],
@@ -85,6 +85,39 @@ test('never produces a keyword, a reserved word or a duplicate over 300 names', 
 	}
 });
 
+const deflated = (s: string) => Bun.deflateSync(s, { level: 12, library: 'libdeflate' }).length;
+
+test('the annealed rename is deterministic, a rename of the greedy one and never larger', async () => {
+	const src = minifyWgsl(substituteConstants(await Bun.file(`${import.meta.dir}/../src/shader.wgsl`).text(), Object.fromEntries(Object.entries(world).filter((e): e is [string, number] => typeof e[1] == 'number'))));
+	const greedy = renameWgsl(src);
+	const annealed = renameWgsl(src, 300);
+	expect(renameWgsl(src, 300)).toBe(annealed);
+	expect(deflated(annealed)).toBeLessThanOrEqual(deflated(greedy));
+	expect(annealed.length).toBe(greedy.length);
+	expect([...items(annealed)].sort().join('').length).toBe(annealed.length);
+	for (const word of ['fn', 'for', 'return', 'select', 'textureStore', '@compute@workgroup_size(64)']) expect(annealed.split(word).length).toBe(greedy.split(word).length);
+});
+
+test('directives stay first when the declarations are reordered', () => {
+	const src = 'enable f16;diagnostic(off,derivative_uniformity);fn alpha(){}fn beta(){alpha();}fn gamma(){beta();alpha();}';
+	expect(renameWgsl(src, 200).startsWith('enable f16;diagnostic(off,derivative_uniformity);')).toBe(true);
+});
+
+test('a struct member spelled like a global is not renamed with it', () => {
+	const out = renameWgsl('struct S{alpha:f32}var<private>alpha:S;fn go()->f32{return alpha.alpha;}', 100);
+	expect(out).toContain('S{alpha:f32}'.replace('S', out.match(/struct (\w+)/)![1]!));
+	expect(out).toMatch(/\.alpha;/);
+});
+
+test('assertRenamed accepts a consistent rename and rejects a capture, a merge and a split global', () => {
+	const before = ['var<private>g:f32;', 'fn f(){let x=g;return x;}'];
+	expect(() => assertRenamed(before, ['var<private>a:f32;', 'fn b(){let c=a;return c;}'])).not.toThrow();
+	expect(() => assertRenamed(before, ['var<private>a:f32;', 'fn b(){let a=a;return a;}'])).toThrow();
+	expect(() => assertRenamed(before, ['var<private>a:f32;', 'fn b(){let c=a;return d;}'])).toThrow();
+	expect(() => assertRenamed(before, ['var<private>a:f32;', 'fn b(){let c=z;return c;}'])).toThrow();
+	expect(() => assertRenamed(before, ['var<private>a:f32;', 'fn a(){let c=a;return c;}'])).toThrow();
+});
+
 test('substitutes whole words only, longest names first, and leaves member reads of other names alone', () => {
 	expect(substituteConstants('SEA SEAX SEA_LEVEL STONE', { SEA: 24, SEA_LEVEL: 25, STONE: 4 })).toBe('24 SEAX 25 4');
 	expect(substituteConstants('SEAX.SEA SEA', { SEA: 24 })).toBe('SEAX.24 24');
@@ -98,4 +131,4 @@ test('the real shader comes out substituted, minified and renamed', async () => 
 	const declared = [...out.matchAll(/\b(?:fn|let|const|struct)\s+(\w+)|\bvar(?:<[^>]*>|\s)\s*(\w+)|[(,)]\s*(\w+)\s*:/g)].map(m => m[1] ?? m[2] ?? m[3]!);
 	expect(declared.length).toBeGreaterThan(0);
 	expect(declared.filter(n => n.length > 2 && !members.has(n))).toEqual([]);
-});
+}, 120_000);
