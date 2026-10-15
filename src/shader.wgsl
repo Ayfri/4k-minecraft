@@ -1,10 +1,10 @@
 /** The immediates: view angles, canvas size (0 while the world generates), input (forward, right, jump, click: -1 break, block id to place, 0 none), time and frame time in seconds. */
-struct Uniforms { a: vec2f, r: vec2f, k: vec4f, t: f32, d: f32 }
+struct Uniforms { a: vec2f, r: vec2f, k: vec4f, t: f32 }
 @group(0) @binding(0) var<storage, read_write> W: array<u32>;
 /** The canvas texture, written by the render branch of `g`. */
 @group(0) @binding(1) var Z: texture_storage_2d<rgba8unorm, write>;
 /** The player state: feet and vertical speed, then the targeted cell (-9 for none) and the contact (2 when the feet landed, 1 against a wall). */
-@group(0) @binding(2) var<storage, read_write> S: array<vec4f, 2>;
+@group(0) @binding(2) var<storage, read_write> S: array<vec4f, 3>;
 var<immediate> U: Uniforms;
 
 var<private> C: vec3i;
@@ -211,22 +211,24 @@ fn tick() {
   var p = S[0].xyz;
   let vy = S[0].w;
   var contact = S[1].w;
+  let dt = min(U.t - S[2].x, .03);
+  S[2].x = U.t;
   let w = B(vec3i(floor(p))) == WATER;
   let d = look();
   let a = normalize(d.xz);
   let j = U.k.z > 0;
   let m = (U.k.x * a + U.k.y * vec2f(a.y, -a.x)) * select(4.3, 1.7, w);
-  let l = select(select(max(vy - 28 * U.d, -30), 8.5, j && contact > 1), select(max(vy - 8.4 * U.d, -2), select(3., 8.5, contact > 0), j), w);
+  let l = select(select(max(vy - 28 * dt, -30), 8.5, j && contact > 1), select(max(vy - 8.4 * dt, -2), select(3., 8.5, contact > 0), j), w);
   var v = vec3f(m.x, l, m.y);
   contact = 0;
   for (var i = 0; i < 3; i++) {
-    p[i] += v[i] * U.d;
+    p[i] += v[i] * dt;
     if hits(p) {
       if i == 1 && v.y < 0 {
         p.y = ceil(p.y);
         contact = 2;
       } else {
-        p[i] -= v[i] * U.d;
+        p[i] -= v[i] * dt;
         contact = max(contact, f32(~i & 1));
       }
       v[i] = 0;

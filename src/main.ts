@@ -21,7 +21,7 @@ const module = device.createShaderModule({ code: shader });
 
 /** The voxels, one byte per cell, and the 32 bytes of player state: the shader owns both. */
 const world = device.createBuffer({ size: BYTES, usage: 132 });
-const state = device.createBuffer({ size: 32, usage: 132 });
+const state = device.createBuffer({ size: 48, usage: 132 });
 const pipeline = device.createComputePipeline({ compute: { module }, layout: 'auto' });
 
 /** The `Uniforms` immediates: view angles, canvas size (0 while the world generates), forward, right, jump, click, time, frame time. */
@@ -60,11 +60,9 @@ onmousemove = e => {
 	A[1] = Math.max(-1.55, Math.min(1.55, A[1] - e.movementY * .002));
 };
 
-let last = 0;
 const frame = (now: number) => {
-	data.set([...A, c.width, c.height, key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA'), key('Space'), click, (DEV ? now + clock : now) / 1e3, Math.min(now - last, 30) / 1e3]);
+	data.set([...A, c.width, c.height, key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA'), key('Space'), click, (DEV ? now + clock : now) / 1e3]);
 	click = 0;
-	last = now;
 	draw();
 	requestAnimationFrame(frame);
 };
