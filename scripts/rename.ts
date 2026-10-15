@@ -145,7 +145,7 @@ export function chooseNames(parts: Part[], bindings: Bindings, rounds = 2, shade
 		};
 		let current = best;
 		let bestNames = [...names];
-		for (let step = 0; step < STEPS; step++) {
+		for (let step = 0; names.length && step < STEPS; step++) {
 			const i = Math.floor(random() * names.length);
 			const name = POOL[Math.floor(random() * POOL.length)]!;
 			const old = names[i]!;
