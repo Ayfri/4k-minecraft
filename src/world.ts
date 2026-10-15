@@ -28,6 +28,8 @@ export const GLASS = 13;
 export const COAL = 14;
 export const IRON = 15;
 export const DIAMOND = 16;
+/** Unbreakable floor: the whole bottom layer, then cells of the 3 layers above with a chance of 75, 50 and 25%. */
+export const BEDROCK = 17;
 
 /** Voxel index, one byte per cell: x and z wrap by bitmask (the SIZE shift floors negatives), y past HEIGHT is out of range. */
 export const idx = (x: number, y: number, z: number) => (MASK & (x + SIZE)) | ((MASK & (z + SIZE)) << 10) | (y << 20);

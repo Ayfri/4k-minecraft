@@ -15,7 +15,7 @@ var<private> K: u32;
 /** Whether `M` stopped on the outline band of the targeted cell. */
 var<private> O: bool;
 
-const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3563, 0x5864, 0x2777, 0x1dca, 0x2653, 0x8462, 0x2a85, 0x3954, 0x1eef, 0x2bbb, 0x6333, 0x4a87, 0x46bb);
+const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3563, 0x5864, 0x2777, 0x1dca, 0x2653, 0x8462, 0x2a85, 0x3954, 0x1eef, 0x2bbb, 0x6333, 0x4a87, 0x46bb, 0xc555);
 
 /** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
 fn H(c: vec3u) -> f32 {
@@ -29,16 +29,16 @@ fn H(c: vec3u) -> f32 {
 /** Voxel index of a cell, one byte per cell. */
 fn I(c: vec3i) -> u32 { return dot(vec3u(c) & vec3u(MASK, TOP, MASK), vec3u(1, LAYER, SIZE)); }
 
-/** The block at a cell: stone below the world (the bottom layer can be broken), air above it, x and z wrap. */
+/** The block at a cell: air above the world, x and z wrap. Nothing reads below it, the bedrock floor cannot be broken. */
 fn B(c: vec3i) -> u32 {
-  if u32(c.y) > TOP { return u32(c.y < 0) * STONE; }
+  if c.y > TOP { return 0; }
   let i = I(c);
   return (W[i >> 2] >> (i % 4 * 8)) & 255;
 }
 
-/** Sets the block of a cell, one invocation edits so no atomics are needed. The bottom layer holds the player state in its first words and stays untouched. */
+/** Sets the block of a cell inside the world unless it is bedrock, one invocation edits so no atomics are needed. */
 fn edit(c: vec3i, b: u32) {
-  if u32(c.y) > TOP { return; }
+  if u32(c.y) > TOP || B(c) == BEDROCK { return; }
   let i = I(c);
   let s = i % 4 * 8;
   W[i >> 2] = (W[i >> 2] & ~(255u << s)) | (b << s);
@@ -122,7 +122,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
     if t.y % 4 > 2 || (t.x + t.y / 4 % 2 * 4) % 8 == 3 { k = STONE; }
   } else if b < WATER {
     k = F(t);
-  } else if b > GLASS && H(vec3u(t / 2, b)) < .8 { k = STONE; }
+  } else if b > GLASS && b < BEDROCK && H(vec3u(t / 2, b)) < .8 { k = STONE; }
   let e = COLORS[k];
   let c = vec3f(vec3u(e >> 8, e >> 4, e) % 16) / 15 * (m + (H(vec3u(t, b)) - .5) * f32(e >> 12) / 8);
   return c * c;
@@ -297,12 +297,13 @@ fn tick() {
         if h > 95 + q * 6 { b = SNOW; }
         if p.y < h { b = DIRT + w; }
         if beach { b = SAND; }
-        if p.y < h - 3 || y == 0 {
+        if p.y < h - 3 {
           b = STONE;
           if q < .015 { b = COAL; } else if q < .022 && p.y < 72 { b = IRON; } else if q < .025 && p.y < 24 { b = DIAMOND; }
         }
-        if y > 0 && !(beach && p.y > h - 3) && Q(p, 32) > .78 { b = AIR; }
+        if !(beach && p.y > h - 3) && Q(p, 32) > .78 { b = AIR; }
       }
+      if p.y < 4 - 4 * q { b = BEDROCK; }
       below = b;
       W[(y << 18) + u.x] |= b << (k * 8);
     }
