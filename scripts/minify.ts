@@ -66,12 +66,12 @@ export const terser = async (js: string) => (await minify(js, TERSER)).code!;
 /** The bundle inside its `(async()=>{...})()` wrapper through Closure, then terser (terser alone without the Closure binary). */
 export const minifyJs = async (wrapped: string) => terser((await closure(wrapped)) ?? wrapped);
 
-/** CR-free streams can still break the comment, a trailing byte changes the stream until one fits. */
+/** Harmless trailing bytes: each one reshuffles the stream, CR escapes and the escape byte, so the page size varies by several bytes. */
+const SUFFIXES = ['', ';', ' ', ';;', '\n', '\t', ';\n', ' ;', ';;;', '\n\n', '  ', ';\t'];
+
+/** The smallest page over the suffixes, a stream can also close the `<xmp>` and then that suffix is skipped. */
 export async function packFit(js: string): Promise<Packed> {
-	for (const suffix of ['', ';', ' ', ';;']) {
-		try {
-			return await pack(js + suffix);
-		} catch {}
-	}
-	throw new Error('no suffix gave a stream that fits in an HTML comment');
+	const pages = (await Promise.all(SUFFIXES.map(suffix => pack(js + suffix).catch(() => undefined)))).filter(p => p !== undefined);
+	if (!pages.length) throw new Error('no suffix gave a stream that fits in the xmp');
+	return pages.reduce((best, p) => (p.html.length < best.html.length ? p : best));
 }
