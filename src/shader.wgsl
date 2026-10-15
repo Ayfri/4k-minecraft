@@ -7,6 +7,8 @@ struct Uniforms { a: vec2f, r: vec2f, k: vec4f, t: f32, d: f32 }
 @group(0) @binding(2) var<storage, read_write> S: array<vec4f, 2>;
 var<immediate> U: Uniforms;
 
+/** The eye above the feet. */
+const HEAD = vec3f(0, 1.62, 0);
 var<private> C: vec3i;
 var<private> N: vec3f;
 var<private> K: u32;
@@ -130,7 +132,7 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
 /** Colour of the pixel at `q` (y down), its corner, so the crosshair arms are 1 px wide on an even canvas size and 2 px on an odd one. */
 fn f(q: vec2f) -> vec4f {
   let fw = look();
-  let eye = S[0].xyz + vec3f(0, 1.62, 0);
+  let eye = S[0].xyz + HEAD;
   let r = normalize(vec3f(fw.z, 0, -fw.x));
   let uv = (2 * q - U.r) / U.r.y;
   let d = normalize(fw * 1.4 + r * uv.x + cross(r, fw) * uv.y);
@@ -234,7 +236,7 @@ fn tick() {
     }
   }
   S[0] = vec4f(p, v.y);
-  let t = M(p + vec3f(0, 1.62, 0), d, WATER, 16);
+  let t = M(p + HEAD, d, WATER, 16);
   S[1] = vec4f(select(vec3f(-9), vec3f(C), t < 6), contact);
   let b = i32(U.k.w);
   if t >= 6 || b == 0 { return; }
