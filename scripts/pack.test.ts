@@ -3,7 +3,7 @@ import { build } from './build.ts';
 import { hopeless } from './lib/deflate.ts';
 import { check, noise, variants } from './lib/page.ts';
 import { search } from './lib/pool.ts';
-import { candidates, encode, FORBIDDEN, pack, render } from './pack.ts';
+import { candidates, encode, FORBIDDEN, pack, render, SUFFIXES } from './pack.ts';
 
 test.concurrent.each([
 	['a small script', '(async()=>{c.width=1})()'],
@@ -46,14 +46,21 @@ test('2 KB of printable noise is hopeless for the constrained search at once, th
 	expect(performance.now() - start).toBeLessThan(5000);
 }, 120_000);
 
-/** The literals before the first match leave the constrained search a single path, so a forbidden byte on it used to fail 6 of 10 near-copies of the game. The initial run alone (0 rounds) decides that. */
+/** The literals before the first match leave the constrained search a single path, so a forbidden byte on it used to fail 6 of 10 near-copies of the game. The initial run alone (0 rounds) decides that, with the `SUFFIXES` retries the packer makes. */
 test('the constrained search finds a stream for 200 near-copies of the game', async () => {
 	await build(false, { out: `${import.meta.dir}/../.cache/game` });
 	const copies = variants(await Bun.file(`${import.meta.dir}/../.cache/game/min.js`).text(), 200, 7);
-	const streams = await Promise.all(copies.map(js => search(new TextEncoder().encode(js), FORBIDDEN, 0, 0)));
-	expect(streams.flatMap((s, i) => (s ? [] : [i]))).toEqual([]);
-	streams.forEach((s, i) => {
-		expect(s!.some(b => FORBIDDEN.includes(b))).toBe(false);
-		expect(new TextDecoder().decode(Bun.inflateSync(Uint8Array.from(s!)))).toBe(copies[i]!);
-	});
+	const found = await Promise.all(
+		copies.map(async js => {
+			for (const suffix of SUFFIXES) {
+				const stream = await search(new TextEncoder().encode(js + suffix), FORBIDDEN, 0, 0);
+				if (stream) return { stream, text: js + suffix };
+			}
+		}),
+	);
+	expect(found.flatMap((f, i) => (f ? [] : [i]))).toEqual([]);
+	for (const { stream, text } of found as { stream: Uint8Array; text: string }[]) {
+		expect(stream.some(b => FORBIDDEN.includes(b))).toBe(false);
+		expect(new TextDecoder().decode(Bun.inflateSync(Uint8Array.from(stream)))).toBe(text);
+	}
 }, 600_000);
