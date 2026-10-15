@@ -60,7 +60,7 @@ class FakeGame implements Dbg {
 		const key = (code: string) => +!!this.keys[code];
 		const [sy, sp] = A.map(Math.sin) as typeof A;
 		const [cy, cp] = A.map(Math.cos) as typeof A;
-		const [fw, rt] = [key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA')];
+		const [fw, rt] = [key('KeyW') * (1 + key('ShiftLeft') * .3) - key('KeyS'), key('KeyD') - key('KeyA')];
 		const speed = V[idx(...P)] == WATER ? 1.7 : 4.3;
 		v[0] = (fw * sy + rt * cy) * speed;
 		v[2] = (fw * cy - rt * sy) * speed;

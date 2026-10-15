@@ -20,7 +20,7 @@ const world = device.createBuffer({ size: BYTES, usage: DEV ? 140 : 128 });
 const state = device.createBuffer({ size: 32, usage: DEV ? 140 : 128 });
 const pipeline = device.createComputePipeline({ compute: { module }, layout: 'auto' });
 
-/** The `Uniforms` immediates: view angles, canvas size (0 while the world generates), forward, right, jump, click, time and frame time in seconds. */
+/** The `Uniforms` immediates: view angles, canvas size (0 while the world generates), forward (1.3 while Shift sprints), right, jump, click, time and frame time in seconds. */
 const data = new Float32Array(10);
 
 /** Encodes one pass: the player step in a lone workgroup, then `g` over `x` by `y` workgroups (the world gen or the render). */
@@ -61,7 +61,7 @@ let last = 0;
 const frame = (now: number) => {
 	c.width = innerWidth;
 	c.height = innerHeight;
-	data.set([...A, c.width, c.height, +!!keys.KeyW - +!!keys.KeyS, +!!keys.KeyD - +!!keys.KeyA, +!!keys.Space, click, (DEV ? now + clock : now) / 1e3, Math.min(now - last, 30) / 1e3]);
+	data.set([...A, c.width, c.height, +!!keys.KeyW * (1 + +!!keys.ShiftLeft * .3) - +!!keys.KeyS, +!!keys.KeyD - +!!keys.KeyA, +!!keys.Space, click, (DEV ? now + clock : now) / 1e3, Math.min(now - last, 30) / 1e3]);
 	if (DEV) devFrame?.(data);
 	click = 0;
 	last = now;

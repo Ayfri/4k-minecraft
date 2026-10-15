@@ -1,4 +1,4 @@
-/** The immediates: view angles, canvas size (0 while the world generates), input (forward, right, jump, click: -1 break, block id to place, 0 none), time and frame time in seconds. */
+/** The immediates: view angles, canvas size (0 while the world generates), input (forward, 1.3 while sprinting, right, jump, click: -1 break, block id to place, 0 none), time and frame time in seconds. */
 struct Uniforms { a: vec2f, r: vec2f, k: vec4f, t: f32, d: f32 }
 @group(0) @binding(0) var<storage, read_write> W: array<u32>;
 /** The canvas texture, written by the render branch of `g`. */
