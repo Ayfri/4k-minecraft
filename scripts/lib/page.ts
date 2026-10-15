@@ -14,31 +14,29 @@ const parse = (html: Uint8Array) =>
 		.join('')
 		.replace(/\r\n?/g, '\n');
 
-/** The comment as the parser sees it and what the decoder passes to `eval`, undefined when no stream of `js` fits a comment. */
+/** The `<xmp>` text as the parser sees it and what the decoder passes to `eval`, undefined when every stream of `js` closes the `<xmp>`. */
 async function roundTrip(js: string) {
 	const html = await pack(js).then(
 		packed => packed.html,
 		e => {
-			if (!String(e).includes('breaks the HTML comment')) throw e;
+			if (!String(e).includes('closes the xmp')) throw e;
 		},
 	);
 	if (!html) return undefined;
 	const text = parse(html);
-	const start = text.indexOf('<!--') + 4;
-	const end = text.indexOf('-->', start);
-	const comment = text.slice(start, end);
-	const script = text.slice(text.indexOf('<script>', end) + 8, text.indexOf('</script>', end));
-	const decoded = new Promise<string>(resolve => new Function('c', 'eval', script)({ firstChild: { data: comment } }, resolve));
-	return { comment, decoded: await decoded, html };
+	const start = text.indexOf("<body onload='") + 14;
+	const handler = text.slice(start, text.indexOf("'>", start));
+	const raw = text.slice(text.indexOf('<xmp>') + 5);
+	const decoded = new Promise<string>(resolve => new Function('c', 'eval', handler)({ textContent: raw }, resolve));
+	return { decoded: await decoded, html, raw };
 }
 
-/** Holds the packed page to every rule the comment and the decoder need, false when no stream of `js` fits a comment. */
+/** Holds the packed page to every rule the `<xmp>` and the decoder need, false when every stream of `js` closes the `<xmp>`. */
 export async function check(js: string) {
 	const trip = await roundTrip(js);
 	if (!trip) return false;
-	const { comment, decoded, html } = trip;
-	expect(comment).not.toContain('--');
-	expect(comment).not.toMatch(/^>|^->|-$/);
+	const { decoded, html, raw } = trip;
+	expect(raw).not.toMatch(/<\/xmp[\t\n\f />]/i);
 	expect(html.includes(13)).toBe(false);
 	expect(decoded).toBe(js);
 	return true;

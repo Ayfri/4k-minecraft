@@ -1,10 +1,10 @@
-/** The deflate stream sits in a comment read as windows-1252, CR (the one byte the parser rewrites) is escaped `E1` and `E` itself `E0`. */
+/** The deflate stream sits in an `<xmp>` read as windows-1252, CR (the one byte the parser rewrites) is escaped `E1` and `E` itself `E0`. */
 import { zopfli } from './lib/zopfli.ts';
 
 /** The bytes the decoder finds by `indexOf` in its lookup string, NUL first then 0x80-0x9F. */
 const TABLE = Uint8Array.from({ length: 33 }, (_, i) => (i ? i + 127 : 0));
-/** Escape candidates: printable ASCII that is neither a regex/string metacharacter nor part of `-->`. */
-const ESCAPES = [...'#%&\',:;<=@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~'].map(c => c.charCodeAt(0));
+/** Escape candidates: printable ASCII that is neither a regex/string metacharacter nor the quote of the `onload` attribute. */
+const ESCAPES = [...'#%&,:;<=@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~'].map(c => c.charCodeAt(0));
 
 export interface Packed {
 	codec: string;
@@ -25,7 +25,7 @@ export async function candidates(input: Uint8Array<ArrayBuffer>): Promise<[strin
 	return out.sort((a, b) => a[1].length - b[1].length);
 }
 
-/** Escapes CR and the escape byte, or returns undefined when the stream would break the comment it sits in. */
+/** Escapes CR and the escape byte, or returns undefined when the stream would close the `<xmp>` it sits in. */
 export function encode(stream: Uint8Array): { data: Uint8Array; escape: number } | undefined {
 	const counts = new Uint32Array(256);
 	for (const b of stream) counts[b]!++;
@@ -33,11 +33,10 @@ export function encode(stream: Uint8Array): { data: Uint8Array; escape: number }
 	const out: number[] = [];
 	for (const b of stream) b === 13 ? out.push(escape, 49) : b === escape ? out.push(escape, 48) : out.push(b);
 	const data = Uint8Array.from(out);
-	const text = Buffer.from(data).toString('latin1');
-	return text.includes('--') || /^-?>|-$/.test(text) ? undefined : { data, escape };
+	return /<\/xmp[\t\n\f />]/i.test(Buffer.from(data).toString('latin1')) ? undefined : { data, escape };
 }
 
-/** Packs `js` into a self-inflating page, the comment is `<canvas id=c>` fallback content read back as `c.firstChild`. */
+/** Packs `js` into a self-inflating page: the stream is the text of `<xmp>` (raw text up to EOF) inside `<canvas id=c>`, read back as `c.textContent` once `<body onload>` fires. */
 export async function pack(js: string): Promise<Packed> {
 	const input = new TextEncoder().encode(js);
 	let best: { codec: string; encoded: NonNullable<ReturnType<typeof encode>>; stream: Uint8Array } | undefined;
@@ -48,12 +47,12 @@ export async function pack(js: string): Promise<Packed> {
 	if (best) {
 		const { codec, encoded, stream } = best;
 		const e = String.fromCharCode(encoded.escape);
-		const decoder = `new Response(new Response(Uint8Array.from(c.firstChild.data.replace(/${e}./g,m=>m<"${e}1"?"${e}":"\\r"),c=>(i="\u0000".indexOf(c))<0?c.charCodeAt():i&&i+127)).body.pipeThrough(new DecompressionStream("deflate-raw"))).text().then(eval)`;
+		const decoder = `new Response(new Response(Uint8Array.from(c.textContent.replace(/${e}./g,m=>m<"${e}1"?"${e}":"\\r"),c=>(i="\u0000".indexOf(c))<0?c.charCodeAt():i&&i+127)).body.pipeThrough(new DecompressionStream("deflate-raw"))).text().then(eval)`;
 		const [before, after] = decoder.split('\u0000') as [string, string];
-		const parts = [ascii(`<meta charset=l1><canvas id=c><!--`), encoded.data, ascii(`--><script>${before}`), TABLE, ascii(`${after}</script>`)];
+		const parts = [ascii(`<meta charset=l1><body onload='${before}`), TABLE, ascii(`${after}'><canvas id=c><xmp>`), encoded.data];
 		const page = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
 		parts.reduce((offset, p) => (page.set(p, offset), offset + p.length), 0);
 		return { codec, deflated: stream.length, html: page };
 	}
-	throw new Error('every compressed candidate breaks the HTML comment, change the input by a byte');
+	throw new Error('every compressed candidate closes the xmp, change the input by a byte');
 }

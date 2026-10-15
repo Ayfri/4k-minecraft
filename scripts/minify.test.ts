@@ -12,9 +12,11 @@ const draw = async (js: string) => {
 	return canvas;
 };
 
-test('packFit gives a page that starts with the charset and the canvas', async () => {
+test('packFit gives a page that starts with the charset and the onload decoder and holds the canvas', async () => {
 	const { html } = await packFit(WRAPPED);
-	expect(new TextDecoder('latin1').decode(html.subarray(0, 40))).toStartWith('<meta charset=l1><canvas id=c><!--');
+	const text = new TextDecoder('latin1').decode(html);
+	expect(text).toStartWith("<meta charset=l1><body onload='");
+	expect(text).toContain("'><canvas id=c><xmp>");
 });
 
 test('the pipeline keeps the behavior and the canvas global', async () => {
