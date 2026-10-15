@@ -1,4 +1,5 @@
 /** The deflate stream sits in an `<xmp>` read as ISO-8859-15 (`l9`, identity except 8 bytes). The parser rewrites CR and NUL and `l9` reads 8 bytes as other characters, so the stream either avoids all 10 byte values (`search`, read as is) or escapes CR (`E1`) and `E` itself (`E0`) and looks the rest up. */
+import { cached } from './lib/cache.ts';
 import { search, zopfli } from './lib/pool.ts';
 
 /** The bytes a stream must avoid to be read as is: NUL, CR and the 8 bytes `l9` reads as other characters. */
@@ -33,15 +34,11 @@ export async function candidates(input: Uint8Array<ArrayBuffer>): Promise<[strin
 const closesXmp = (stream: Uint8Array) => /<\/xmp[\t\n\f />]/i.test(Buffer.from(stream).toString('latin1'));
 
 /** The smallest stream of `seeds` searches that avoids `FORBIDDEN` and cannot close the `<xmp>`, undefined when none does (inputs of a few bytes). A search takes tens of seconds, so the stream is kept in `.cache` under a hash of the input and of the encoder. */
-async function searched(input: Uint8Array, seeds: number) {
-	const hash = new Bun.CryptoHasher('sha256').update(input).update(await Bun.file(`${import.meta.dir}/lib/deflate.ts`).bytes()).update(`${FORBIDDEN}/${seeds}`);
-	const file = Bun.file(`${import.meta.dir}/../.cache/search-${hash.digest('hex').slice(0, 24)}.bin`);
-	if (await file.exists()) return new Uint8Array(await file.arrayBuffer());
-	const streams = await Promise.all(Array.from({ length: seeds }, (_, seed) => search(input, FORBIDDEN, seed)));
-	const best = streams.filter(s => s && !closesXmp(s)).reduce<Uint8Array | undefined>((a, s) => (!a || s!.length < a.length ? s : a), undefined);
-	if (best) await Bun.write(file, best);
-	return best;
-}
+const searched = (input: Uint8Array, seeds: number) =>
+	cached('search', ['lib/deflate.ts'], [input, `${FORBIDDEN}/${seeds}`], async () => {
+		const streams = await Promise.all(Array.from({ length: seeds }, (_, seed) => search(input, FORBIDDEN, seed)));
+		return streams.filter(s => s && !closesXmp(s)).reduce<Uint8Array | undefined>((a, s) => (!a || s!.length < a.length ? s : a), undefined);
+	});
 
 /** Escapes CR and the escape byte, or returns undefined when the stream would close the `<xmp>` it sits in. */
 export function encode(stream: Uint8Array): { data: Uint8Array; escape: number } | undefined {

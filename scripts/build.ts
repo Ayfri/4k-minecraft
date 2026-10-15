@@ -1,7 +1,8 @@
 /** `--dev` writes `dev.html` (game plus `src/dev` bot), else the packed `index.html`. `--out <dir>` picks the folder, `--verbose` adds the bundle inputs. */
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { pack } from './pack.ts';
+import { cached } from './lib/cache.ts';
+import { pack, type Packed } from './pack.ts';
 import { shrink } from './shrink.ts';
 import { wgslPlugin } from './wgsl-plugin.ts';
 
@@ -27,6 +28,16 @@ async function bundle(dev: boolean) {
 	return { code: (await result.outputs[0]!.text()).trim(), inputs: output!.inputs };
 }
 
+/** `pack(js)` kept as one line `codec deflated` followed by the page. */
+async function packed(js: string): Promise<Packed> {
+	const bytes = (await cached('pack', ['pack.ts', 'lib/deflate.ts', 'lib/pool.ts', 'lib/pool.worker.ts'], [js], async () => {
+		const { codec, deflated, html } = await pack(js);
+		return Buffer.concat([Buffer.from(`${codec} ${deflated}\n`), html]);
+	}))!;
+	const [codec, deflated] = Buffer.from(bytes.subarray(0, bytes.indexOf(10))).toString().split(' ');
+	return { codec: codec!, deflated: Number(deflated), html: bytes.subarray(bytes.indexOf(10) + 1) };
+}
+
 /** Writes `dev.html`, or `min.js`, `index.html` and `size.json` once the page fits 4096 B, and returns the one-line summary. */
 export async function build(dev: boolean, { out = `${root}/dist`, verbose = false }: BuildOptions = {}) {
 	out = resolve(out);
@@ -38,9 +49,10 @@ export async function build(dev: boolean, { out = `${root}/dist`, verbose = fals
 		return `dev build ${new Date().toLocaleTimeString()}`;
 	}
 	if (Object.entries(inputs).some(([path, { bytesInOutput }]) => /src[\\/]dev[\\/]/.test(path) && bytesInOutput)) throw new Error('DEV module leaked into the build');
-	const js = await shrink(`(async()=>{${code}})()`);
+	const wrapped = `(async()=>{${code}})()`;
+	const js = new TextDecoder().decode(await cached('shrink', ['shrink.ts', 'transform.ts', 'print.ts', 'rename.ts'], [wrapped], () => new TextEncoder().encode(shrink(wrapped))));
 	if (/dbg|console/.test(js)) throw new Error('DEV code leaked into the minified build');
-	const { codec, deflated, html } = await pack(js);
+	const { codec, deflated, html } = await packed(js);
 	await Bun.write(`${out}/min.js`, js);
 	const sizeFile = Bun.file(`${out}/size.json`);
 	/** A fresh `--out` folder compares against the committed baseline in `dist`. */
