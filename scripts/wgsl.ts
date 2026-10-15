@@ -129,9 +129,10 @@ const deflated = (s: string) => Bun.deflateSync(s, { level: 12, library: 'libdef
  * Renames every local, parameter and multi-letter global to the first free letter, most used first, except members, swizzles and builtin arguments.
  * A global gets a letter no other global has and no word of the items using it spells, a local one that is not a global its function reads,
  * so functions share letters (a local may shadow a global its function never reads).
- * With `rounds`, a seeded annealing then reassigns letters and reorders the declarations to minimise the deflated size of the text.
+ * With `rounds`, a seeded annealing then reassigns letters and reorders the declarations to minimise the deflated size of the text,
+ * or of `frame`, the script before and after the shader string, with the text in it.
  */
-export function renameWgsl(s: string, rounds = 0) {
+export function renameWgsl(s: string, rounds = 0, frame: [string, string] = ['', ''], seed = 0x9e3779b9) {
 	const parts = items(s);
 	const { globals, locals, tokens } = model(parts, s);
 	for (const g of globals) if (g.orig.length == 1) g.letter = g.orig;
@@ -146,9 +147,8 @@ export function renameWgsl(s: string, rounds = 0) {
 	let order = parts.map((_, i) => i);
 	if (rounds) {
 		const texts = parts.map((_, i) => text(i));
-		const render = () => order.map(i => texts[i]).join('');
+		const render = () => frame[0] + order.map(i => texts[i]).join('') + frame[1];
 		const refresh = (n: Name) => n.itemsUsing.forEach(i => (texts[i] = text(i)));
-		let seed = 0x9e3779b9;
 		const random = () => {
 			seed = (seed + 0x6d2b79f5) | 0;
 			let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);

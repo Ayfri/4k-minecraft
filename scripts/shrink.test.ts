@@ -18,6 +18,15 @@ test('renaming keeps shadowing, shorthand properties and closures apart', () => 
 	same(`(()=>{var alpha=3,beta=(gamma,delta)=>{var eps=gamma*delta;return{eps,total:eps+alpha}},{eps:zeta,total}=beta(2,5);out.push(zeta,total,c.width);var f=function(x,y){return[x,y,alpha,(()=>{var alpha=9;return alpha+x})()]};out.push(...f(1,2));for(let i=0;i<2;i++){let j=i*4;out.push(j+total)}})()`);
 });
 
+test('a shader string is renamed with the script and the script still runs', () => {
+	const src = 'fn first(arg:f32)->f32{var tmp=arg*2.;return tmp;}fn second(arg:f32)->f32{return first(arg)+first(arg);}';
+	const js = '(()=>{var longName=5,shaderText=' + JSON.stringify(src) + ';out.push(longName,shaderText.length)})()';
+	const small = shrink(js, 1, undefined, { rounds: 100, seed: 3, src });
+	expect(small).not.toContain(src);
+	expect(small).toMatch(/fn \w+\(\w:f32\)->f32/);
+	expect(run(small)[0]).toBe(5);
+});
+
 test('renaming never takes the name of a free variable the scope reads', () => {
 	const small = same('(()=>{var longa=1,longb=c.width;out.push(longa+longb)})()');
 	expect(small).toMatch(/c\.width/);

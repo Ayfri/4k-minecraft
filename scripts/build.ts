@@ -2,11 +2,15 @@
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { cached } from './lib/cache.ts';
+import { shrunk } from './lib/pool.ts';
 import { pack, type Packed } from './pack.ts';
-import { shrink } from './shrink.ts';
+import { shader } from './shader.ts';
 import { wgslPlugin } from './wgsl-plugin.ts';
 
 const root = `${import.meta.dir}/..`;
+/** The shader names are annealed in `CHAINS` parallel chains of `ROUNDS` steps (one per physical core), the smallest script wins. */
+const CHAINS = 6;
+const ROUNDS = 30000;
 
 interface BuildOptions {
 	/** Folder of the artifacts and of the size baseline, `dist` by default. */
@@ -50,7 +54,14 @@ export async function build(dev: boolean, { out = `${root}/dist`, verbose = fals
 	}
 	if (Object.entries(inputs).some(([path, { bytesInOutput }]) => /src[\\/]dev[\\/]/.test(path) && bytesInOutput)) throw new Error('DEV module leaked into the build');
 	const wrapped = `(async()=>{${code}})()`;
-	const js = new TextDecoder().decode(await cached('shrink', ['shrink.ts', 'transform.ts', 'print.ts', 'rename.ts'], [wrapped], () => new TextEncoder().encode(shrink(wrapped))));
+	const src = await shader(`${root}/src/shader.wgsl`);
+	const js = new TextDecoder().decode(
+		await cached('shrink', ['shrink.ts', 'transform.ts', 'print.ts', 'rename.ts', 'wgsl.ts', 'lib/pool.ts', 'lib/pool.worker.ts'], [wrapped, `${CHAINS}/${ROUNDS}`], async () => {
+			const scripts = await Promise.all(Array.from({ length: CHAINS }, (_, seed) => shrunk(wrapped, { rounds: ROUNDS, seed: seed + 1, src })));
+			const size = (s: Uint8Array | undefined) => Bun.deflateSync(Uint8Array.from(s!),{ level: 12, library: 'libdeflate' }).length;
+			return scripts.reduce((best, s) => (size(s) < size(best) ? s : best));
+		}),
+	);
 	if (/dbg|console/.test(js)) throw new Error('DEV code leaked into the minified build');
 	const { codec, deflated, html } = await packed(js);
 	await Bun.write(`${out}/min.js`, js);

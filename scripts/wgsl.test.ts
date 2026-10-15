@@ -112,6 +112,14 @@ test('the annealed rename is deterministic, a rename of the greedy one and never
 	for (const word of ['fn', 'for', 'return', 'select', 'textureStore', '@compute@workgroup_size(64)']) expect(annealed.split(word).length).toBe(greedy.split(word).length);
 });
 
+test('annealing against a frame is deterministic per seed and keeps the rename valid', () => {
+	const src = 'fn alpha(x:f32)->f32{return x*x;}fn beta(y:f32)->f32{var z=alpha(y);return z+alpha(z);}';
+	const frame: [string, string] = ['var s="', '";s.length'];
+	const a = renameWgsl(src, 200, frame, 5);
+	expect(renameWgsl(src, 200, frame, 5)).toBe(a);
+	expect(items(a).length).toBe(items(src).length);
+});
+
 test('directives stay first when the declarations are reordered', () => {
 	const src = 'enable f16;diagnostic(off,derivative_uniformity);fn alpha(){}fn beta(){alpha();}fn gamma(){beta();alpha();}';
 	expect(renameWgsl(src, 200).startsWith('enable f16;diagnostic(off,derivative_uniformity);')).toBe(true);
@@ -138,7 +146,7 @@ test('substitutes whole words only, longest names first, and leaves member reads
 });
 
 test('the real shader comes out substituted, minified and renamed', async () => {
-	const out = await shader(`${import.meta.dir}/../src/shader.wgsl`);
+	const out = renameWgsl(await shader(`${import.meta.dir}/../src/shader.wgsl`));
 	expect(out).not.toMatch(/\/\/|\/\*|\s{2,}|\n/);
 	for (const name of Object.keys(world).filter(n => n.length > 2 && typeof world[n as keyof typeof world] == 'number')) expect(out).not.toMatch(new RegExp(`\\b${name}\\b`));
 	const members = new Set(out.match(/(?<=\.)\w+/g));
