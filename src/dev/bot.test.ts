@@ -51,6 +51,13 @@ class FakeGame implements Dbg {
 		return (this.selected = block);
 	}
 
+	/** The wheel of `main.ts`: the next id for a positive `deltaY`, else the previous one, over the ids 1 to 16 without air (0) and water (3), wrapping. */
+	wheel(deltaY: number) {
+		do this.selected = (this.selected + (deltaY > 0 ? 1 : 16)) % 17;
+		while (9 >> this.selected & 1);
+		return this.selected;
+	}
+
 	sync = async () => {};
 
 	time = (seconds: number) => seconds;
@@ -184,6 +191,14 @@ test('select with a drifted digit mapping records a failure', () => {
 	expect(bot.select(STONE)).toBe(false);
 	expect(bot.stats.failures).toHaveLength(1);
 	expect(setup(flat(20), [100.5, 20, 100.5]).bot.select(STONE)).toBe(true);
+});
+
+test('the wheel cycles every placeable id in both directions and skips air and water', () => {
+	const { game } = setup(flat(20), [100.5, 20, 100.5]);
+	const ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+	game.select(1);
+	expect(ids.map(() => game.wheel(1))).toEqual([...ids.slice(1), 1]);
+	expect(ids.map(() => game.wheel(-1))).toEqual(ids.toReversed());
 });
 
 test('select reaches every digit key, 0 is glass, other keys keep the block', () => {

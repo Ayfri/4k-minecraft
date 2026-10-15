@@ -1,5 +1,5 @@
-/** The immediates: view angles, canvas size (0 while the world generates), input (forward, 1.3 while sprinting, right, jump, click: -1 break, block id to place, 0 none), time and frame time in seconds. */
-struct Uniforms { a: vec2f, r: vec2f, k: vec4f, t: f32, d: f32 }
+/** The immediates: view angles, canvas size (0 while the world generates), input (forward, 1.3 while sprinting, right, jump, click: -1 break, block id to place, 0 none), time and frame time in seconds, the selected block (drawn as a preview in the bottom-right corner). */
+struct Uniforms { a: vec2f, r: vec2f, k: vec4f, t: f32, d: f32, s: f32 }
 @group(0) @binding(0) var<storage, read_write> W: array<u32>;
 /** The canvas texture, written by the render branch of `g`. */
 @group(0) @binding(1) var Z: texture_storage_2d<rgba8unorm, write>;
@@ -173,6 +173,14 @@ fn f(q: vec2f) -> vec4f {
   }
   col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .2));
   if s < 1e9 { col = mix(col, sky, smoothstep(60, 145, s)); }
+  /** Preview of the selected block, texels scaled 3x in a 48 px square 10 px from the bottom-right corner, plants are transparent where their colour is black (no colour has a null red). */
+  let v = vec2u(vec2i(q - U.r + 58)) / 3;
+  if (v.x | v.y) < 16 {
+    K = u32(U.s);
+    C = vec3i();
+    let p = X(K, v, vec3f());
+    if p.x > 0 { col = p; }
+  }
   let z = abs(q - U.r / 2);
   let o = sqrt(col);
   return vec4f(select(o, 1 - o, min(z.x, z.y) < 1 && max(z.x, z.y) < 9), 1);
