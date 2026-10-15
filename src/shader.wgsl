@@ -15,7 +15,7 @@ var<private> K: u32;
 /** Whether `M` stopped on the outline band of the targeted cell. */
 var<private> O: bool;
 
-const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3573, 0x5864, 0x3777, 0x1edb, 0x6753, 0x8351, 0x1a85, 0x0b65, 0x1def, 0x1ade, 0x6333, 0x4a87, 0x46bb, 0xc555);
+const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3573, 0x5864, 0x3777, 0x1edb, 0x6753, 0x8351, 0x1a85, 0x0b65, 0x0def, 0x1ade, 0x6333, 0x4a87, 0x46bb, 0xc555);
 
 /** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
 fn H(c: vec3u) -> f32 {
@@ -177,12 +177,14 @@ fn f(q: vec2f) -> vec4f {
       if r > 1 { u.x = 15 - u.x; }
     }
     let ol = O;
-    var ao = 0.;
-    for (var i = 0; i < 4; i++) {
-      let o = C + vec3i(n) + vec3i(select(n.zxy, n.yzx, i > 1)) * (i % 2 * 2 - 1);
-      if B(o) > WATER { ao += saturate(1.5 - distance(P, vec3f(o) + .5)); }
+    /** Minecraft-like smooth AO over sun and sky light: the 8 cells around the front cell of the face weighted by distance, squared because the output is `sqrt(col)`, about .6 on screen along an edge and .4 in an inner corner. Glass neither casts nor receives it. */
+    var a = 1.;
+    for (var i = 0; i < 9; i++) {
+      let o = C + vec3i(n + n.zxy * f32(i % 3 - 1) + n.yzx * f32(i / 3 - 1));
+      let b = B(o);
+      if i != 4 && b > WATER && b != GLASS && K != GLASS { a -= saturate(1.5 - distance(P, vec3f(o) + .5)) * .3; }
     }
-    col = X(K, u, n) * ((vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) * (1 - ao * .3) + vec3f(.65, .5, .3) * saturate(L.y * 5) * max(dot(n, L), 0) * step(1e9, M(P + n * .01, L, WATER, 128)));
+    col = X(K, u, n) * ((vec3f(.4, .45, .55) * D + .03) * dot(N, vec3f(.6, 1, .8)) + vec3f(.65, .5, .3) * saturate(L.y * 5) * max(dot(n, L), 0) * step(1e9, M(P + n * .01, L, WATER, 128))) * a * a;
     if ol { col = abs(1 - col); }
   }
   col = mix(col, vec3f(.05, .2, .5) * D + .02, 1 - exp(-wd * .2));
