@@ -1,7 +1,6 @@
-/** The fixed minifier chain: Closure Compiler, then terser with options and a mangler alphabet tuned once by a grid search, then `pack()`. */
+/** The fixed minifier chain: Closure Compiler, then terser with options and a mangler alphabet tuned once by a grid search (`pack()` follows in the build). */
 import { tmpdir } from 'node:os';
 import { minify, type MinifyOptions } from 'terser';
-import { pack, type Packed } from './pack.ts';
 
 /** Mangled names start with these letters in this order (most used first), then the digits, same arithmetic as terser's `base54`. */
 const CHARS = 'edtamfcuvoknsqbxgjywhlHpKziMBCrUNAEFPGLW_QTDIRSXOYJVZ$0123456789';
@@ -65,13 +64,3 @@ export const terser = async (js: string) => (await minify(js, TERSER)).code!;
 
 /** The bundle inside its `(async()=>{...})()` wrapper through Closure, then terser (terser alone without the Closure binary). */
 export const minifyJs = async (wrapped: string) => terser((await closure(wrapped)) ?? wrapped);
-
-/** Harmless trailing bytes: each one reshuffles the stream, CR escapes and the escape byte, so the page size varies by several bytes. */
-const SUFFIXES = ['', ';', ' ', ';;', '\n', '\t', ';\n', ' ;', ';;;', '\n\n', '  ', ';\t'];
-
-/** The smallest page over the suffixes, a stream can also close the `<xmp>` and then that suffix is skipped. */
-export async function packFit(js: string): Promise<Packed> {
-	const pages = (await Promise.all(SUFFIXES.map(suffix => pack(js + suffix).catch(() => undefined)))).filter(p => p !== undefined);
-	if (!pages.length) throw new Error('no suffix gave a stream that fits in the xmp');
-	return pages.reduce((best, p) => (p.html.length < best.html.length ? p : best));
-}

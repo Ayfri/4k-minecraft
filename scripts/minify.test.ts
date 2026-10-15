@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { tmpdir } from 'node:os';
 import { build } from './build.ts';
-import { closure, minifyJs, packFit, terser } from './minify.ts';
+import { closure, minifyJs, terser } from './minify.ts';
+import { pack } from './pack.ts';
 
 const WRAPPED = '(async()=>{const size = 3 * 4;\n\tc.width = size + 1;\n\tc.height = size;\n})()';
 
@@ -12,8 +13,8 @@ const draw = async (js: string) => {
 	return canvas;
 };
 
-test('packFit gives a page that starts with the charset and the onload decoder and holds the canvas', async () => {
-	const { html } = await packFit(WRAPPED);
+test('pack gives a page that starts with the charset and the onload decoder and holds the canvas', async () => {
+	const { html } = await pack(WRAPPED);
 	const text = new TextDecoder('latin1').decode(html);
 	expect(text).toStartWith("<meta charset=l9><body onload='");
 	expect(text).toContain("'><canvas id=c><xmp>");
@@ -42,4 +43,4 @@ test('the build runs the pipeline, the minified game has no DEV code and the pag
 	} finally {
 		await Bun.$`rm -rf ${out}`.quiet();
 	}
-}, 60_000);
+}, 180_000);

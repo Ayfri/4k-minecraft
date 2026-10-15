@@ -13,7 +13,7 @@ const parse = (html: Uint8Array) =>
 
 /** The `<xmp>` text as the parser sees it and what the decoder passes to `eval`, undefined when every stream of `js` closes the `<xmp>`. */
 async function roundTrip(js: string) {
-	const html = await pack(js).then(
+	const html = await pack(js, 1).then(
 		packed => packed.html,
 		e => {
 			if (!String(e).includes('closes the xmp')) throw e;

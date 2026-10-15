@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { check, noise } from './lib/page.ts';
-import { candidates, encode, pack } from './pack.ts';
+import { candidates, encode, pack, render } from './pack.ts';
 
 test.concurrent.each([
 	['a small script', '(async()=>{c.width=1})()'],
@@ -15,9 +15,19 @@ const TOKENS = ['let ', 'const ', 'for(', 'i=0;', 'i<n;', 'i++', '){', '}', 'x+=
 const SOUP = [...noise(1000, 1, TOKENS.map((_, i) => String.fromCharCode(97 + i)))].map(ch => TOKENS[ch.charCodeAt(0) - 97]).join('');
 
 test('picks the candidate with the smallest page, not the shortest stream', async () => {
-	const pages = (await candidates(new TextEncoder().encode(SOUP))).map(([codec, stream]) => [codec, encode(stream)?.data.length ?? Infinity] as const);
-	const smallest = Math.min(...pages.map(([, size]) => size));
-	expect(pages[0]![1]).toBeGreaterThan(smallest);
-	const { codec } = await pack(SOUP);
-	expect(pages.find(([name]) => name === codec)![1]).toBe(smallest);
+	const pages = (await candidates(new TextEncoder().encode(SOUP))).map(([, stream]) => {
+		const encoded = encode(stream);
+		return encoded ? render(encoded.data, encoded.escape).length : Infinity;
+	});
+	const smallest = Math.min(...pages);
+	expect(pages[0]).toBeGreaterThan(smallest);
+	expect((await pack(SOUP, 1)).html.length).toBeLessThanOrEqual(smallest);
+}, 120_000);
+
+test('the search stream avoids CR, NUL and the 8 bytes l9 changes, so its page needs no decoding', async () => {
+	const { codec, html } = await pack(SOUP.repeat(2), 1);
+	const page = Buffer.from(html).toString('latin1');
+	expect(codec).toBe('search');
+	expect(page).not.toContain('.replace(');
+	expect([...html.subarray(page.indexOf('<xmp>') + 5)].filter(b => [0, 13, 0xa4, 0xa6, 0xa8, 0xb4, 0xb8, 0xbc, 0xbd, 0xbe].includes(b))).toEqual([]);
 }, 120_000);
