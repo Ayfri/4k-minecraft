@@ -1,8 +1,8 @@
 /** `--dev` writes `dev.html` (game plus `src/dev` bot), else the packed `index.html`. `--out <dir>` picks the folder, `--verbose` adds the bundle inputs. */
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { minifyJs } from './minify.ts';
 import { pack } from './pack.ts';
+import { shrink } from './shrink.ts';
 import { wgslPlugin } from './wgsl-plugin.ts';
 
 const root = `${import.meta.dir}/..`;
@@ -38,7 +38,7 @@ export async function build(dev: boolean, { out = `${root}/dist`, verbose = fals
 		return `dev build ${new Date().toLocaleTimeString()}`;
 	}
 	if (Object.entries(inputs).some(([path, { bytesInOutput }]) => /src[\\/]dev[\\/]/.test(path) && bytesInOutput)) throw new Error('DEV module leaked into the build');
-	const js = await minifyJs(`(async()=>{${code}})()`);
+	const js = await shrink(`(async()=>{${code}})()`);
 	if (/dbg|console/.test(js)) throw new Error('DEV code leaked into the minified build');
 	const { codec, deflated, html } = await pack(js);
 	await Bun.write(`${out}/min.js`, js);

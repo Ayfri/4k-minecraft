@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { tmpdir } from 'node:os';
 import { build } from './build.ts';
-import { closure, minifyJs, terser } from './minify.ts';
 import { pack } from './pack.ts';
+import { shrink } from './shrink.ts';
 
 const WRAPPED = '(async()=>{const size = 3 * 4;\n\tc.width = size + 1;\n\tc.height = size;\n})()';
 
@@ -21,17 +21,7 @@ test('pack gives a page that starts with the charset and the onload decoder and 
 });
 
 test('the pipeline keeps the behavior and the canvas global', async () => {
-	expect(await draw(await minifyJs(WRAPPED))).toEqual({ height: 12, width: 13 });
-});
-
-test('closure compiles the script and leaves the canvas global alone, or is skipped when it is not installed', async () => {
-	const js = await closure(WRAPPED);
-	if (js) expect(await draw(js)).toEqual({ height: 12, width: 13 });
-	else expect(js).toBeUndefined();
-});
-
-test('terser alone, the fallback without Closure, keeps the behavior', async () => {
-	expect(await draw(await terser(WRAPPED))).toEqual({ height: 12, width: 13 });
+	expect(await draw(await shrink(WRAPPED))).toEqual({ height: 12, width: 13 });
 });
 
 test('the build runs the pipeline, the minified game has no DEV code and the page fits', async () => {

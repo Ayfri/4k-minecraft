@@ -19,9 +19,11 @@
   "devDependencies": {
     "@gfx/zopfli": "^1.0.15",
     "@types/bun": "^1.4.3",
+    "@types/eslint-scope": "^9.1.0",
+    "@types/estree": "^1.0.9",
     "@webgpu/types": "^0.1.74",
-    "google-closure-compiler": "^20261011.0.0",
-    "terser": "^5.51.2",
+    "acorn": "^8.19.0",
+    "eslint-scope": "^9.1.2",
     "typescript": "^7.0.2"
   }
 }

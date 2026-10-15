@@ -1,0 +1,109 @@
+/** Picks the name of every local binding by the deflate size of the whole script instead of by length, scope analysis keeps the program equivalent. */
+import { analyze, type Scope, type Variable } from 'eslint-scope';
+import type { Program } from 'estree';
+import type { Part } from './print.ts';
+
+/** Mangled names are single letters, the search can pick any of them. */
+const POOL = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$'];
+
+/** The local bindings of a script, which can share a name, and which names each can not take. */
+export class Bindings {
+	/** Each declaring or referencing Identifier node to its binding. */
+	readonly byNode = new Map<object, number>();
+	readonly conflicts: Set<number>[] = [];
+	readonly forbidden: Set<string>[] = [];
+	readonly names: string[] = [];
+	/** The scope analysis of each binding: declarations and every read or write. */
+	readonly variables: Variable[] = [];
+
+	constructor(ast: Program) {
+		const manager = analyze(ast, { ecmaVersion: 2025, sourceType: 'script' });
+		const scopes = manager.scopes.filter(s => s.type !== 'global');
+		const index = new Map<unknown, number>();
+		for (const scope of scopes)
+			for (const variable of scope.variables) {
+				if (!variable.defs.length) continue;
+				const binding = this.names.length;
+				index.set(variable, binding);
+				this.names.push(variable.name);
+				this.variables.push(variable);
+				this.conflicts.push(new Set());
+				this.forbidden.push(new Set());
+				for (const id of [...variable.identifiers, ...variable.references.map(r => r.identifier)]) this.byNode.set(id, binding);
+			}
+		/** Two bindings conflict when one is visible where the other is used. */
+		for (const scope of scopes)
+			for (const variable of scope.variables) {
+				const i = index.get(variable);
+				if (i === undefined) continue;
+				for (const from of [scope, ...variable.references.map(r => r.from)]) {
+					for (let s: Scope | null = from; s; s = s.upper) {
+						for (const other of s.variables) {
+							const j = index.get(other);
+							if (j !== undefined && j !== i) this.conflicts[i]!.add(j), this.conflicts[j]!.add(i);
+						}
+						if (s === scope) break;
+					}
+				}
+			}
+		/** A global read or written inside a scope can not be shadowed by a binding of it. */
+		for (const { from, identifier } of manager.globalScope!.through)
+			for (let s: Scope | null = from; s && s.type !== 'global'; s = s.upper)
+				for (const other of s.variables) if (index.has(other)) this.forbidden[index.get(other)!]!.add(identifier.name);
+	}
+
+	free(i: number, name: string, names: string[]) {
+		if (this.forbidden[i]!.has(name)) return false;
+		for (const j of this.conflicts[i]!) if (names[j] === name) return false;
+		return true;
+	}
+
+	/** A valid naming to start from: the most used bindings take the first letters. */
+	initial() {
+		const uses = this.names.map(() => 0);
+		for (const i of this.byNode.values()) uses[i]!++;
+		const names: string[] = this.names.map(() => '');
+		for (const i of this.names.keys().toArray().sort((a, b) => uses[b]! - uses[a]!)) names[i] = POOL.find(n => this.free(i, n, names))!;
+		return names;
+	}
+}
+
+/** The script text for `names`, adjacent text pieces are merged once so a render is one join. */
+export function renderer(parts: Part[]) {
+	const texts: string[] = [''];
+	const slots: number[] = [];
+	for (const p of parts)
+		if (typeof p === 'number') (slots.push(p), texts.push(''));
+		else texts[texts.length - 1] += p;
+	return (names: string[]) => texts.reduce((out, text, i) => out + (i ? names[slots[i - 1]!] : '') + text, '');
+}
+
+const deflated = (js: string) => Bun.deflateSync(new TextEncoder().encode(js), { level: 12, library: 'libdeflate' }).length;
+
+/** Coordinate descent over the names, then pairwise swaps, against the libdeflate size of the script, from the names the bindings already have. */
+export function chooseNames(parts: Part[], bindings: Bindings, rounds = 2) {
+	const render = renderer(parts);
+	const names = bindings.initial();
+	let best = deflated(render(names));
+	/** Keeps `change` when it shrinks the stream, undoes it otherwise. */
+	const attempt = (touched: number[], change: () => void, undo: () => void) => {
+		change();
+		const size = touched.every(i => bindings.free(i, names[i]!, names)) ? deflated(render(names)) : Infinity;
+		if (size < best) return (best = size), true;
+		return undo(), false;
+	};
+	for (let round = 0, improved = true; improved && round < rounds; round++) {
+		improved = false;
+		for (let i = 0; i < names.length; i++)
+			for (const name of POOL) {
+				const old = names[i]!;
+				if (name !== old && bindings.free(i, name, names)) improved = attempt([i], () => (names[i] = name), () => (names[i] = old)) || improved;
+			}
+		for (let i = 0; i < names.length; i++)
+			for (let j = i + 1; j < names.length; j++) {
+				const [a, b] = [names[i]!, names[j]!];
+				if (a !== b) improved = attempt([i, j], () => ([names[i], names[j]] = [b, a]), () => ([names[i], names[j]] = [a, b])) || improved;
+			}
+	}
+	return render(names);
+}
