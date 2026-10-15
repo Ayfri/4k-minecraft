@@ -1,10 +1,10 @@
-/** The deflate stream sits in an `<xmp>` read as windows-1252, CR (the one byte the parser rewrites) is escaped `E1` and `E` itself `E0`. */
+/** The deflate stream sits in an `<xmp>` read as ISO-8859-15 (`l9`, identity except 8 bytes), CR (the one byte the parser rewrites) is escaped `E1` and `E` itself `E0`. */
 import { zopfli } from './lib/zopfli.ts';
 
-/** The bytes the decoder finds by `indexOf` in its lookup string, NUL first then 0x80-0x9F. */
-const TABLE = Uint8Array.from({ length: 33 }, (_, i) => (i ? i + 127 : 0));
-/** Escape candidates: printable ASCII that is neither a regex/string metacharacter nor the quote of the `onload` attribute. */
-const ESCAPES = [...'#%&,:;<=@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~'].map(c => c.charCodeAt(0));
+/** The bytes the decoder finds by `indexOf` in its lookup string: NUL, then 0xA4-0xBE which holds all 8 bytes ISO-8859-15 reads as other characters. */
+const TABLE = Uint8Array.from({ length: 28 }, (_, i) => (i ? i + 163 : 0));
+/** Escape candidates: every byte that is safe raw inside the `onload` quotes, a regex literal and a string (no NUL, controls, quotes, `\`, `/`, `&` or regex metacharacters). */
+const ESCAPES = Array.from({ length: 224 }, (_, i) => i + 32).filter(b => !'"\'\\/&^$.*+?()[]{}|'.includes(String.fromCharCode(b)) && b !== 127);
 
 export interface Packed {
 	codec: string;
@@ -47,9 +47,9 @@ export async function pack(js: string): Promise<Packed> {
 	if (best) {
 		const { codec, encoded, stream } = best;
 		const e = String.fromCharCode(encoded.escape);
-		const decoder = `new Response(new Response(Uint8Array.from(c.textContent.replace(/${e}./g,m=>m<"${e}1"?"${e}":"\\r"),c=>(i="\u0000".indexOf(c))<0?c.charCodeAt():i&&i+127)).body.pipeThrough(new DecompressionStream("deflate-raw"))).text().then(eval)`;
+		const decoder = `new Response(new Response(Uint8Array.from(c.textContent.replace(/${e}./g,m=>"${e}\\r"[m[1]]),c=>(i="\u0000".indexOf(c))<0?c.charCodeAt():i&&i+163)).body.pipeThrough(new DecompressionStream("deflate-raw"))).text().then(eval)`;
 		const [before, after] = decoder.split('\u0000') as [string, string];
-		const parts = [ascii(`<meta charset=l1><body onload='${before}`), TABLE, ascii(`${after}'><canvas id=c><xmp>`), encoded.data];
+		const parts = [ascii(`<meta charset=l9><body onload='${before}`), TABLE, ascii(`${after}'><canvas id=c><xmp>`), encoded.data];
 		const page = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
 		parts.reduce((offset, p) => (page.set(p, offset), offset + p.length), 0);
 		return { codec, deflated: stream.length, html: page };

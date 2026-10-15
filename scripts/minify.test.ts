@@ -15,7 +15,7 @@ const draw = async (js: string) => {
 test('packFit gives a page that starts with the charset and the onload decoder and holds the canvas', async () => {
 	const { html } = await packFit(WRAPPED);
 	const text = new TextDecoder('latin1').decode(html);
-	expect(text).toStartWith("<meta charset=l1><body onload='");
+	expect(text).toStartWith("<meta charset=l9><body onload='");
 	expect(text).toContain("'><canvas id=c><xmp>");
 });
 

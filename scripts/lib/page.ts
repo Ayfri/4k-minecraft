@@ -1,16 +1,13 @@
-/** Reads a packed page back like a browser (windows-1252, CR normalized) and runs its decoder against a fake canvas. */
+/** Reads a packed page back like a browser (ISO-8859-15, CR normalized, `<xmp>` raw text to EOF, `onload` run after parsing) and runs its decoder against a fake canvas. */
 import { expect } from 'bun:test';
 import { pack } from '../pack.ts';
 
-/** WHATWG windows-1252 for 0x80-0x9F, hardcoded so the tests never trust the runtime's TextDecoder labels. */
-const CP1252 = [
-	0x20ac, 0x81, 0x201a, 0x192, 0x201e, 0x2026, 0x2020, 0x2021, 0x2c6, 0x2030, 0x160, 0x2039, 0x152, 0x8d, 0x17d, 0x8f, 0x90, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x2dc, 0x2122,
-	0x161, 0x203a, 0x153, 0x9d, 0x17e, 0x178,
-];
+/** WHATWG ISO-8859-15 (label `l9`): identity except these bytes, hardcoded so the tests never trust the runtime's TextDecoder labels. Checked against Chrome 155. */
+const L9: Record<number, number> = { 0xa4: 0x20ac, 0xa6: 0x160, 0xa8: 0x161, 0xb4: 0x17d, 0xb8: 0x17e, 0xbc: 0x152, 0xbd: 0x153, 0xbe: 0x178 };
 
-/** The text the HTML parser hands over: 1252 decoding, CRLF and lone CR become LF, NUL becomes U+FFFD. */
+/** The text the HTML parser hands over: ISO-8859-15 decoding, CRLF and lone CR become LF, NUL becomes U+FFFD. */
 const parse = (html: Uint8Array) =>
-	Array.from(html, b => String.fromCharCode(b >= 0x80 && b < 0xa0 ? CP1252[b - 0x80]! : b || 0xfffd))
+	Array.from(html, b => String.fromCharCode(L9[b] ?? (b || 0xfffd)))
 		.join('')
 		.replace(/\r\n?/g, '\n');
 
