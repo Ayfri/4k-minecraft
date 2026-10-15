@@ -15,7 +15,7 @@ var<private> K: u32;
 /** Whether `M` stopped on the outline band of the targeted cell. */
 var<private> O: bool;
 
-const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3563, 0x5864, 0x2777, 0x1dca, 0x2653, 0x8351, 0x2a85, 0x3954, 0x1eff, 0x2ade, 0x6333, 0x4da9, 0x46bb);
+const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3563, 0x5864, 0x2777, 0x1dca, 0x2653, 0x8351, 0x2a85, 0x4a64, 0x1eff, 0x2ade, 0x6333, 0x4da9, 0x46bb, 0xc555);
 
 /** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
 fn H(c: vec3u) -> f32 {
@@ -110,21 +110,21 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   if b == GRASS {
     if n.y < 0 || (n.y == 0 && t.y > 1 + u32(H(vec3u(t.x, 7, b)) * 3)) { k = DIRT; }
   } else if b == LOG {
-    if n.y == 0 { m = .7 + .6 * H(vec3u(t.x, t.y / 5, b)); } else {
+    if n.y == 0 { m = .5 + H(vec3u(t.x, t.y / 5, b)); } else {
       let a = abs(vec2i(t) * 2 - 15);
       let r = max(a.x, a.y);
-      k = select(PLANKS, b, r > 12);
+      k = select(PLANKS, b, r > 14);
       m = 1 - .25 * f32((r + 1) / 4 % 2);
     }
   } else if b == PLANKS {
     if (t.x + t.y / 4 % 2 * 8) % 16 == 3 || t.y % 4 > 2 { m = .65; }
   } else if b == BRICKS {
-    if t.y % 4 > 2 || (t.x + t.y / 4 % 2 * 4) % 8 == 3 { k = STONE; }
+    if t.y % 4 > 2 || (t.x + t.y / 4 % 2 * 4) % 8 == 3 { k = STONE; m = 1.3; }
   } else if b < WATER {
     k = F(t);
   } else if b > GLASS && b < BEDROCK && H(vec3u(t / 2, b)) < .8 { k = STONE; }
   let e = COLORS[k];
-  let c = vec3f(vec3u(e >> 8, e >> 4, e) % 16) / 15 * (m + (H(vec3u(t, b)) - .5) * f32(e >> 12) / 8);
+  let c = vec3f(vec3u(e >> 8, e >> 4, e) % 16) / 15 * (m + (H(vec3u(t.x / 2, t.y, b)) - .5) * f32(e >> 12) / 8);
   return c * c;
 }
 
