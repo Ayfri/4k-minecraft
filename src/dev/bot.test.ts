@@ -17,7 +17,7 @@ class FakeGame implements Dbg {
 		V: Uint8Array,
 		P: Vec3,
 		readonly dt = .016,
-		readonly shift = 3,
+		readonly shift = GRASS - 1,
 	) {
 		this.V = V;
 		this.P = P;
@@ -51,10 +51,10 @@ class FakeGame implements Dbg {
 		return (this.selected = block);
 	}
 
-	/** The wheel of `main.ts`: the next id for a positive `deltaY`, else the previous one, over the ids 1 to 16 without air (0) and water (3), wrapping. */
+	/** The wheel of `main.ts`: the next id for a positive `deltaY`, else the previous one, over the ids 1 to 17 without air (0) and water (4), wrapping. */
 	wheel(deltaY: number) {
-		do this.selected = (this.selected + (deltaY > 0 ? 1 : 16)) % 17;
-		while (9 >> this.selected & 1);
+		do this.selected = (this.selected + (deltaY > 0 ? 1 : 17)) % 18;
+		while (17 >> this.selected & 1);
 		return this.selected;
 	}
 
@@ -80,7 +80,7 @@ class FakeGame implements Dbg {
 /** Dirt with a grass top, the top cell is `floor - 1` and the feet stand at `floor`. */
 const flat = (floor: number) => new Uint8Array(BYTES).fill(DIRT, 0, idx(0, floor - 1, 0)).fill(GRASS, idx(0, floor - 1, 0), idx(0, floor, 0));
 
-const setup = (V: Uint8Array, P: Vec3, dt = .016, shift = 3) => {
+const setup = (V: Uint8Array, P: Vec3, dt = .016, shift = GRASS - 1) => {
 	const game = new FakeGame(V, P, dt, shift);
 	return { bot: new Bot(game, { frame: async () => game.step(), key: (code, down) => game.key(code, down) }), game };
 };
@@ -195,7 +195,7 @@ test('select with a drifted digit mapping records a failure', () => {
 
 test('the wheel cycles every placeable id in both directions and skips air and water', () => {
 	const { game } = setup(flat(20), [100.5, 20, 100.5]);
-	const ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+	const ids = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
 	game.select(1);
 	expect(ids.map(() => game.wheel(1))).toEqual([...ids.slice(1), 1]);
 	expect(ids.map(() => game.wheel(-1))).toEqual(ids.toReversed());

@@ -90,9 +90,9 @@ export class Bot {
 		for (let i = 0; i < n; i++) await this.step();
 	}
 
-	/** Presses the digit key of block `id` (ids 4 to 12 are `Digit1` to `Digit9`, 13 is `Digit0`) and checks that the game selected it. */
+	/** Presses the digit key of block `id` (ids 5 to 13 are `Digit1` to `Digit9`, 14 is `Digit0`) and checks that the game selected it. */
 	select(id: number) {
-		const code = `Digit${(id - 3) % 10}`;
+		const code = `Digit${(id - 4) % 10}`;
 		this.io.key(code, true);
 		this.io.key(code, false);
 		const got = this.game.select();

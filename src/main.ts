@@ -41,16 +41,16 @@ run(4096);
 
 const draw = () => run(c.width / 64 + 1, c.height);
 
-/** Block placed by the right button: the digit keys pick the ids 4 to 13 (`Digit1` is grass and `Digit0` the tenth, glass), the wheel cycles all placeable ids (plants 1 and 2, blocks 4 to 13, ores 14 to 16). */
-let selected = 4;
+/** Block placed by the right button: the digit keys pick the ids 5 to 14 (`Digit1` is grass and `Digit0` the tenth, glass), the wheel cycles all placeable ids (plants 1 to 3, blocks 5 to 14, ores 15 to 17). */
+let selected = 5;
 /** The click of the next frame for the shader: -1 breaks the target and the plant above it, else the block to place in the free cell or over a plant. */
 let click = 0;
-onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = ((+e.code[5]! + 9) % 10) + 4 || selected));
+onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = ((+e.code[5]! + 9) % 10) + 5 || selected));
 onmousedown = e => (document.pointerLockElement ? (click = e.button < 2 ? -1 : selected) : c.requestPointerLock({ unadjustedMovement: true }));
-/** The wheel steps `selected` through the ids 1 to 16 and wraps, skipping air and water (`9 >> id & 1` is set for 0 and 3). */
+/** The wheel steps `selected` through the ids 1 to 17 and wraps, skipping air and water (`17 >> id & 1` is set for 0 and 4). */
 onwheel = e => {
-	do selected = (selected + (e.deltaY > 0 ? 1 : 16)) % 17;
-	while (9 >> selected & 1);
+	do selected = (selected + (e.deltaY > 0 ? 1 : 17)) % 18;
+	while (17 >> selected & 1);
 };
 oncontextmenu = () => !1;
 onblur = () => (keys = {});

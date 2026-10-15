@@ -1,6 +1,6 @@
 # 4k-minecraft
 
-A remake of Notch's 2009 Minecraft 4k as one self-extracting HTML file of at most 4096 bytes, rendered with WebGPU. The page, `dist/index.html`, is 4087 bytes.
+A remake of Notch's 2009 Minecraft 4k as one self-extracting HTML file of at most 4096 bytes, rendered with WebGPU. The page, `dist/index.html`, is 4085 bytes.
 
 ## Screenshots
 
@@ -34,7 +34,7 @@ Notch's entry for the Java 4K contest, released in December 2009, was 2581 bytes
 
 ## Features
 
-- World: 1024x1024x128 cells that wrap around on x and z. Value-noise terrain with biomes hundreds of blocks wide: a big lake and smaller ones at sea level (y 44) with beaches, large deserts, plains and forests, and a mountain massif up to y 124 with bare stone above about y 80 and snow above about y 95. Caves, trees, flowers and short grass tufts on the grass, and coal, iron and diamond ores by depth. The player spawns above the west shore of the big lake and drops onto it.
+- World: 1024x1024x128 cells that wrap around on x and z. Value-noise terrain with biomes hundreds of blocks wide: a big lake and smaller ones at sea level (y 44) with beaches, large deserts, plains and forests, and a mountain massif up to y 124 with bare stone above about y 80 and snow above about y 95. Caves, trees, red and yellow flowers and short grass tufts on the grass, and coal, iron and diamond ores by depth. The player spawns above the west shore of the big lake and drops onto it.
 - Physics: a 0.6 x 1.8 box with gravity, jumping, wall and ceiling collisions and swimming. One block can be climbed by jumping. In water, walking slows down, Space swims up slowly, and against a block it jumps out of the lake onto the shore.
 - Rendering: voxel ray marching per pixel at the full window resolution, procedural 16x16 textures with colours and patterns matched to the vanilla block textures, ambient occlusion, sun shadows, see-through leaves that let light and shadows through like the vanilla fancy leaves, glass that only shows its frame and a glint, flowers and tufts drawn as X sprites on the two diagonal planes of their cell, a day and night cycle with stars and a dark moonless night, distance fog that also covers far water, underwater tint, a box outline on the targeted block or plant and a crosshair.
 - Blocks: break the block you aim at (reach of 6 blocks, a plant above it goes with it) and place the selected block in front of it. A flower or a tuft can be broken directly or replaced by a block.
@@ -50,6 +50,7 @@ Notch's entry for the Java 4K contest, released in December 2009, was 2581 bytes
 | Left click | Break the targeted block |
 | Right click | Place the selected block |
 | 1 to 9, 0 | Select the block: grass, dirt, stone, sand, log, leaves, planks, bricks, snow, glass |
+| Mouse wheel | Cycle the selected block through everything placeable: the red flower, the yellow flower, the tuft, the ten blocks above, then coal, iron and diamond |
 
 ## Browser support
 

@@ -15,7 +15,7 @@ var<private> K: u32;
 /** Whether `M` stopped on the outline band of the targeted cell. */
 var<private> O: bool;
 
-const COLORS = array(0u, 0x4c22, 0x4573, 0x4ec4, 0x3573, 0x5864, 0x2777, 0x1edb, 0x6753, 0x8351, 0x1a85, 0x0b65, 0x0def, 0x1ade, 0x6333, 0x4a87, 0x46bb, 0xc555);
+const COLORS = array(0u, 0x4c22, 0x4ec4, 0x4573, 0x247e, 0x3573, 0x5864, 0x2777, 0x1edb, 0x6753, 0x8351, 0x1a85, 0x0b65, 0x0def, 0x1ade, 0x6333, 0x4a87, 0x46bb, 0xc555);
 
 /** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
 fn H(c: vec3u) -> f32 {
@@ -56,7 +56,7 @@ fn A(P: vec3f) -> vec2u {
   return vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y < 1))) * 16);
 }
 
-/** Colour index of the plant texel `u` of the cell C: blades for a tuft, a stem and a red or yellow head for a flower, 0 where transparent (plants only reach it through the diagonal planes of `M`). Leaves have holes, glass keeps its frame and a streak. */
+/** Colour index of the plant texel `u` of the cell C: blades for a tuft, a stem and a head of the flower's own colour for a flower, 0 where transparent (plants only reach it through the diagonal planes of `M`). Leaves have holes, glass keeps its frame and a streak. */
 fn F(u: vec2u) -> u32 {
   if K == GLASS { return u32(any(u % 15 == vec2u()) || (u.x + u.y == 6 && u.x - 2 < 3)); }
   if K > TUFT { return u32(K != LEAVES || H(vec3u(u, K)) > .3); }
@@ -69,7 +69,7 @@ fn F(u: vec2u) -> u32 {
   let d = i32(u.x) - 7;
   if (d == 0 && u.y > 9) || (i32(u.y) + abs(d) == 14 && abs(d) < 3) { return LEAVES; }
   if d == 0 && u.y == 7 { return COAL; }
-  if a + abs(i32(u.y) - 7) * 2 < 7 { return 1 + u32(H(vec3u(C.zyx)) * 2) * 2; }
+  if a + abs(i32(u.y) - 7) * 2 < 7 { return K; }
   return 0;
 }
 
@@ -305,7 +305,7 @@ fn tick() {
       if p.y > h {
         if r < .3 && th < 75 && th > SHORE && !desert && d.x == 0 && d.z == 0 && d.y < 1 && d.y > -4 { b = LOG; }
         else if r < .3 && th < 75 && th > SHORE && !desert && abs(d.y + .5) < 2 && dot(d, d) < 5.5 - q { b = LEAVES; }
-        else if q < .3 && below == GRASS { b = 1 + u32(q > .05); }
+        else if q < .3 && below == GRASS { b = min(1 + u32(q * 40), TUFT); }
         else if p.y <= SEA { b = WATER; }
       } else {
         let beach = desert || h <= SHORE;

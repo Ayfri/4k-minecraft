@@ -10,26 +10,27 @@ export const SEA = 44;
 /** Highest column that gets a beach and no trees. */
 export const SHORE = SEA + 1;
 export const AIR = 0;
-/** Plants (flowers, tufts) have no collision, `target` stops at them to break or replace them, the shader's march only stops on opaque texels. */
+/** Plants (the red flower, the dandelion, tufts) have no collision, `target` stops at them to break or replace them, the shader's march only stops on opaque texels. */
 export const FLOWER = 1;
-export const TUFT = 2;
-export const WATER = 3;
-export const GRASS = 4;
-export const DIRT = 5;
-export const STONE = 6;
-export const SAND = 7;
-export const LOG = 8;
-export const LEAVES = 9;
-export const PLANKS = 10;
-export const BRICKS = 11;
-export const SNOW = 12;
+export const DANDELION = 2;
+export const TUFT = 3;
+export const WATER = 4;
+export const GRASS = 5;
+export const DIRT = 6;
+export const STONE = 7;
+export const SAND = 8;
+export const LOG = 9;
+export const LEAVES = 10;
+export const PLANKS = 11;
+export const BRICKS = 12;
+export const SNOW = 13;
 /** Solid for physics and `target`, the shader's march only stops on its frame and streak texels. */
-export const GLASS = 13;
-export const COAL = 14;
-export const IRON = 15;
-export const DIAMOND = 16;
+export const GLASS = 14;
+export const COAL = 15;
+export const IRON = 16;
+export const DIAMOND = 17;
 /** Unbreakable floor: the whole bottom layer, then cells of the 3 layers above with a chance of 75, 50 and 25%. */
-export const BEDROCK = 17;
+export const BEDROCK = 18;
 
 /** Voxel index, one byte per cell: x and z wrap by bitmask (the SIZE shift floors negatives), y past HEIGHT is out of range. */
 export const idx = (x: number, y: number, z: number) => (MASK & (x + SIZE)) | ((MASK & (z + SIZE)) << 10) | (y << 20);

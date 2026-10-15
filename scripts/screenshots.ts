@@ -1,20 +1,20 @@
 /** Builds the dev page and writes `screenshots/<name>.webp` for every view of the README gallery, or only the names given as arguments. */
 import { build } from './build.ts';
 import { HOUSE_NEAR, overview, runBot } from './bot.ts';
-import { LAYER, SIZE } from '../src/world.ts';
+import { GRASS, LAYER, SIZE } from '../src/world.ts';
 import { Page } from './webview.ts';
 
 const root = `${import.meta.dir}/..`;
 
-/** Places blocks 4 to 12 on a 3x3 patch of flat grass found within 30 of (x, z) with `bot.place`, after breaking every plant between the camera and the patch, farthest block first so each ray reaches bare ground. */
+/** Places blocks 5 to 13 on a 3x3 patch of flat grass found within 30 of (x, z) with `bot.place`, after breaking every plant between the camera and the patch, farthest block first so each ray reaches bare ground. */
 const blocks = (x: number, z: number, yaw: number) =>
 	`(async()=>{const top=bot.top.bind(bot);let cx=${x | 0},cz=${z | 0};
-	for(let o=0;o<3600;o++){const px=${x | 0}-30+o%60,pz=${z | 0}-30+(o/60|0);let ok=1;for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++){const y=top(px+a,pz+b);if(dbg.V[px+a+(pz+b)*${SIZE}+y*${LAYER}]!=4||y!=top(px,pz))ok=0}for(let t=3;t<=6;t++)if(top(Math.round(px-Math.sin(${yaw})*t),Math.round(pz-Math.cos(${yaw})*t))!=top(px,pz))ok=0;if(ok){cx=px;cz=pz;break}}
+	for(let o=0;o<3600;o++){const px=${x | 0}-30+o%60,pz=${z | 0}-30+(o/60|0);let ok=1;for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++){const y=top(px+a,pz+b);if(dbg.V[px+a+(pz+b)*${SIZE}+y*${LAYER}]!=${GRASS}||y!=top(px,pz))ok=0}for(let t=3;t<=6;t++)if(top(Math.round(px-Math.sin(${yaw})*t),Math.round(pz-Math.cos(${yaw})*t))!=top(px,pz))ok=0;if(ok){cx=px;cz=pz;break}}
 	const sx=cx+.5-Math.sin(${yaw})*4.5,sz=cz+.5-Math.cos(${yaw})*4.5;bot.at(sx,sz,${yaw},-.3);
 	const dist=(a,b)=>Math.hypot(a[0]-dbg.P[0],a[1]-dbg.P[2])-Math.hypot(b[0]-dbg.P[0],b[1]-dbg.P[2]);
 	const near=[];for(let a=Math.min(sx,cx)-2|0;a<=Math.max(sx,cx)+2;a++)for(let b=Math.min(sz,cz)-2|0;b<=Math.max(sz,cz)+2;b++)near.push([a,b]);
 	for(const[a,b]of near.sort(dist)){const y=top(a,b);if(dbg.V[a+b*${SIZE}+(y+1)*${LAYER}])await bot.break(a,y+1,b)}
-	const cells=[];for(let i=0;i<9;i++)cells.push([cx-1+i%3,cz-1+(i/3|0),i+4]);
+	const cells=[];for(let i=0;i<9;i++)cells.push([cx-1+i%3,cz-1+(i/3|0),i+${GRASS}]);
 	for(const[gx,gz,id]of cells.sort((a,b)=>dist(b,a)))await bot.place(gx,top(gx,gz)+1,gz,id);
 	bot.at(sx,sz,${yaw},-.3)})()`;
 
