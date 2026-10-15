@@ -15,7 +15,7 @@ var<private> K: u32;
 /** Whether `M` stopped on the outline band of the targeted cell. */
 var<private> O: bool;
 
-const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3563, 0x5864, 0x2777, 0x1dca, 0x2753, 0x8351, 0x2a85, 0x0a54, 0x1eff, 0x2ade, 0x6333, 0x4c97, 0x46bb, 0xc555);
+const COLORS = array(0u, 0x4c22, 0x4563, 0x4ec4, 0x3573, 0x5864, 0x2777, 0x1edb, 0x2753, 0x8351, 0x1a85, 0x0b54, 0x0fff, 0x1ade, 0x6333, 0x4a87, 0x46bb, 0xc555);
 
 /** Seeded hash in [0, 1) of a cell, x and z wrap at the world size and y at its height so everything built on it tiles the world. */
 fn H(c: vec3u) -> f32 {
@@ -63,9 +63,12 @@ fn F(u: vec2u) -> u32 {
   let a = abs(i32(u.x) * 2 - 15);
   if K == TUFT {
     let w = i32(u.x) + i32(u.y) * (i32(H(vec3u(u.x / 4, 5, 3)) * 3) - 1) / 6;
-    return K * u32(u.y > 1 + u32(H(vec3u(u32(w), 3, 3)) * 10) && (u.y > 11 || (w & 1) > 0) && a < i32(u.y) + 5);
+    let h = 1 + u32(a * a / 40) + u32(H(vec3u(u32(w), 3, 3)) * 5);
+    return K * u32(select(u.y > 13 && (a < 14), u.y > h, (w & 1) > 0));
   }
-  if a < 2 && u.y > 9 { return LEAVES; }
+  let d = i32(u.x) - 7;
+  if (d == 0 && u.y > 9) || (i32(u.y) + abs(d) == 14 && abs(d) < 3) { return LEAVES; }
+  if d == 0 && u.y == 7 { return COAL; }
   if a + abs(i32(u.y) - 7) * 2 < 7 { return 1 + u32(H(vec3u(C.zyx)) * 2) * 2; }
   return 0;
 }
@@ -114,26 +117,28 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
   if b == GRASS {
     if n.y < 0 || (n.y == 0 && t.y > 1 + u32(H(vec3u(t.x, 7, b)) * 3)) { k = DIRT; }
   } else if b == LOG {
-    if n.y == 0 { m = .65 + .8 * pow(H(vec3u(t.x, (t.y + t.x * 5) / 8, b)), 2); } else {
+    if n.y == 0 { m = .75 + .5 * H(vec3u(t.x, 0, b)); } else {
       let a = abs(vec2i(t) * 2 - 15);
       let r = max(a.x, a.y);
       k = select(PLANKS, b, r > 14);
-      m = 1 - .2 * f32((r + 5) / 4 % 2);
+      m = 1 - .2 * f32(r / 2 % 2);
     }
   } else if b == PLANKS {
-    if t.y % 4 > 2 { m = .8; } else if (t.x + t.y / 4 % 2 * 8) % 16 == 3 { m = .93; }
+    if t.y % 4 > 2 { m = .72; } else if (t.x + t.y / 4 % 2 * 8) % 16 == 3 { m = .88; }
   } else if b == BRICKS {
-    let p = (t.x + t.y / 4 % 2 * 4 + 4) % 8;
-    if t.y % 4 > 2 || p > 6 { k = STONE; m = 1.3; } else { m = 1.2 - .04 * f32(p + t.y % 4); }
+    if t.y % 4 > 2 || (t.x + t.y / 4 % 2 * 4 + 4) % 8 > 6 { k = STONE; m = 1.3; } else { m = 1.15 - .1 * f32(t.y % 4); }
   } else if b == SAND {
     m = 1 + .12 * step(.95, H(vec3u(t, b)));
   } else if b < WATER {
     k = F(t);
   } else if b > GLASS && b < BEDROCK {
+    let a = abs(vec2i(t) * 2 - 15);
+    let r = max(a.x, a.y);
     let o = Q(vec3f(vec3u(t, b)), 2.5);
-    if o < .62 { k = STONE; } else if o > .7 { m = 1.25; }
+    if f32(r) / 90 + .52 > o || r > 11 { k = STONE; } else if o > .66 { m = 1.25; }
   }
-  if k == STONE || b == BEDROCK { s.x = (t.x + t.y * 5) / (2 + t.y % 2); }
+  if k == DIRT && H(vec3u(t, b)) > .985 { k = STONE; }
+  if k == STONE || b == BEDROCK { s.x = (t.x + t.y * 5) / (2 + t.y % 2); } else if b == LEAVES { s /= 2; }
   let e = COLORS[k];
   let c = vec3f(vec3u(e >> 8, e >> 4, e) % 16) / 15 * (m + (H(vec3u(s, b)) - .5) * f32(e >> 12) / 8);
   return c * c;
