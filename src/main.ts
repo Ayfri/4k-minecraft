@@ -1,9 +1,7 @@
 import shader from './shader.wgsl' with { type: 'text' };
-import { BYTES, collides, idx, LAYER, lift, move, target, WATER, type Vec3 } from './world.ts';
+import { BYTES } from './world.ts';
 
-/** Feet position, spawned high above the plateau on the west shore of the lake, under the snow-capped mountain, and dropped onto it. */
-const P: Vec3 = [434.5, 100, 511.5];
-const v: Vec3 = [0, 0, 0];
+/** Yaw and pitch, the shader derives the view direction and the walk direction from them. */
 const A: [number, number] = [-1.7, -.02];
 /** Milliseconds added to the page clock, set by `dbg.time`. */
 let clock = 0;
@@ -21,17 +19,14 @@ const ctx = c.getContext('webgpu')!;
 ctx.configure({ device, format: 'rgba8unorm', usage: 8 });
 const module = device.createShaderModule({ code: shader });
 
+/** The voxels, one byte per cell, and the player state in its first words: the shader owns both. */
 const world = device.createBuffer({ size: BYTES, usage: 140 });
-const readback = device.createBuffer({ size: BYTES, usage: 9 });
 const pipeline = device.createComputePipeline({ compute: { module }, layout: 'auto' });
 
-/** The targeted voxel index and the free cell in front of it, refreshed every frame. */
-let hit: [number, number] | undefined;
+/** The `Uniforms` immediates: view angles, canvas size (0 while the world generates), forward, right, jump, click, time, frame time. */
+const data = new Float32Array(10);
 
-/** The `Uniforms` immediates: eye, time, view direction, targeted voxel index as a u32 (exact past 2^24, 0xFFFFFFFF for none), canvas size, all 0 while the world generates. */
-const data = new Float32Array(12);
-
-/** Encodes one pass of `g` over `x` by `y` workgroups, with the world, the canvas texture and `data`. */
+/** Encodes one pass: `g` over `x` by `y` workgroups (the world gen or the render), then the player step in a lone workgroup that the next frame renders. */
 const run = (x: number, y = 1) => {
 	const encoder = device.createCommandEncoder();
 	const pass = encoder.beginComputePass();
@@ -39,47 +34,22 @@ const run = (x: number, y = 1) => {
 	pass.setBindGroup(0, device.createBindGroup({ entries: [{ binding: 0, resource: world }, { binding: 1, resource: ctx.getCurrentTexture() }], layout: pipeline.getBindGroupLayout(0) }));
 	pass.setImmediates(0, data);
 	pass.dispatchWorkgroups(x, y);
+	pass.dispatchWorkgroups(1);
 	pass.end();
-	return encoder;
-};
-
-const upload = (seconds: number, eye: Vec3, dir: Vec3) => {
-	data.set([...eye, seconds, ...dir, 0, c.width, c.height]);
-	new Uint32Array(data.buffer)[7] = hit?.[0] ?? -1;
+	queue.submit([encoder.finish()]);
 };
 
 const t0 = DEV ? performance.now() : 0;
-const gen = run(4096);
-gen.copyBufferToBuffer(world, readback, BYTES);
-queue.submit([gen.finish()]);
-await readback.mapAsync(1);
-const V = new Uint8Array(readback.getMappedRange());
+run(4096);
 
-const draw = () => queue.submit([run(c.width / 64 + 1, c.height).finish()]);
-
-/** Sets a voxel and uploads the 4-byte word that holds it. */
-const put = (i: number, b: number) => {
-	V[i] = b;
-	queue.writeBuffer(world, i & ~3, V, i & ~3, 4);
-};
-
-/** Left click breaks the target and the plant above it, right click places the selected block in a free cell or over a plant. */
-const act = (button: number) => {
-	if (!hit) return;
-	const [i, free] = hit;
-	if (button < 2) return put(i, 0), V[i + LAYER]! < WATER && put(i + LAYER, 0);
-	const cell = V[i]! < WATER ? i : free;
-	const old = V[cell]!;
-	if (old <= WATER) {
-		put(cell, selected);
-		if (collides(V, P)) put(cell, old);
-	}
-};
+const draw = () => run(c.width / 64 + 1, c.height);
 
 /** Block placed by the right button, picked with the digit keys (ids 4 to 13, `Digit1` is grass and `Digit0` the tenth, glass). */
 let selected = 4;
+/** The click of the next frame for the shader: -1 breaks the target and the plant above it, the selected block is placed in the free cell or over a plant. */
+let click = 0;
 onkeydown = onkeyup = e => ((keys[e.code] = e.type < 'keyu'), (selected = ((+e.code[5]! + 9) % 10) + 4 || selected));
-onmousedown = e => (document.pointerLockElement ? act(e.button) : c.requestPointerLock({ unadjustedMovement: true }).catch(() => c.requestPointerLock()));
+onmousedown = e => (document.pointerLockElement ? (click = e.button < 2 ? -1 : selected) : c.requestPointerLock({ unadjustedMovement: true }).catch(() => c.requestPointerLock()));
 oncontextmenu = () => !1;
 onblur = () => (keys = {});
 onresize = () => ((c.width = innerWidth), (c.height = innerHeight));
@@ -90,22 +60,10 @@ onmousemove = e => {
 };
 
 let last = 0;
-let ground = 0;
 const frame = (now: number) => {
-	const dt = Math.min(now - last, 30) / 1e3;
+	data.set([...A, c.width, c.height, key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA'), key('Space'), click, (DEV ? now + clock : now) / 1e3, Math.min(now - last, 30) / 1e3]);
+	click = 0;
 	last = now;
-	const [sy, sp] = A.map(Math.sin) as typeof A;
-	const [cy, cp] = A.map(Math.cos) as typeof A;
-	const [fw, rt] = [key('KeyW') - key('KeyS'), key('KeyD') - key('KeyA')];
-	const speed = V[idx(...P)] == WATER ? 1.7 : 4.3;
-	v[0] = (fw * sy + rt * cy) * speed;
-	v[2] = (fw * cy - rt * sy) * speed;
-	v[1] = lift(V, P, v[1], dt, key('Space'), ground);
-	ground = move(V, P, v, dt);
-	const eye: Vec3 = [P[0], P[1] + 1.62, P[2]];
-	const dir: Vec3 = [sy * cp, sp, cy * cp];
-	hit = target(V, eye, dir);
-	upload((DEV ? now + clock : now) / 1e3, eye, dir);
 	draw();
 	requestAnimationFrame(frame);
 };
@@ -115,21 +73,15 @@ if (DEV) {
 	device.onuncapturederror = e => console.error(e.error.message);
 	for (const m of (await module.getCompilationInfo()).messages) console.log(`wgsl ${m.type} ${m.lineNum}: ${m.message}`);
 	console.log(`gen ${(performance.now() - t0).toFixed(1)} ms`);
-	const bench = async (n = 100) => {
-		const start = performance.now();
-		for (let i = 0; i < n; i++) draw();
-		await queue.onSubmittedWorkDone();
-		return (performance.now() - start) / n;
+	const probe = device.createBuffer({ size: 64, usage: 9 });
+	const state = async (cell = 0) => {
+		const encoder = device.createCommandEncoder();
+		encoder.copyBufferToBuffer(world, cell & ~3, probe, 0, 64);
+		queue.submit([encoder.finish()]);
+		await probe.mapAsync(1);
+		const bytes = probe.getMappedRange().slice(0);
+		probe.unmap();
+		return { f: [...new Float32Array(bytes, 0, 5)], hit: new Uint32Array(bytes)[5] };
 	};
-	const time = (seconds: number) => (clock = seconds * 1e3 - performance.now());
-	const select = (block = selected) => (selected = block);
-	Object.assign(globalThis, {
-		dbg: {
-			A, P, V, act, bench,
-			get hit() {
-				return hit;
-			},
-			select, time, v,
-		} satisfies Dbg,
-	});
+	Object.assign(globalThis, { dbg: { A, state } });
 }

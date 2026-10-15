@@ -1,4 +1,5 @@
-struct Uniforms { p: vec3f, t: f32, a: vec3f, h: u32, r: vec2f }
+/** The immediates: view angles, canvas size (0 while the world generates), input (forward, right, jump, click: -1 break, block id to place, 0 none), time and frame time in seconds. */
+struct Uniforms { a: vec2f, r: vec2f, k: vec4f, t: f32, d: f32 }
 @group(0) @binding(0) var<storage, read_write> W: array<u32>;
 /** The canvas texture, written by the render branch of `g`. */
 @group(0) @binding(1) var Z: texture_storage_2d<rgba8unorm, write>;
@@ -31,6 +32,24 @@ fn B(c: vec3i) -> u32 {
   return (W[i >> 2] >> (i % 4 * 8)) & 255;
 }
 
+/** Sets the block of a cell, one invocation edits so no atomics are needed. The bottom layer holds the player state in its first words and stays untouched. */
+fn edit(c: vec3i, b: u32) {
+  if u32(c.y - 1) >= TOP { return; }
+  let i = I(c);
+  let s = i % 4 * 8;
+  W[i >> 2] = (W[i >> 2] & ~(255u << s)) | (b << s);
+}
+
+/** The player state, words 0 to 5 of the world: feet x y z and vertical speed (f32), contact (f32, 2 landed, 1 wall) and the targeted cell index (u32, -1 for none). */
+fn feet() -> vec3f { return bitcast<vec3f>(vec3u(W[0], W[1], W[2])); }
+
+/** View direction from the yaw and pitch. */
+fn look() -> vec3f {
+  let s = sin(U.a);
+  let c = cos(U.a);
+  return vec3f(s.x * c.y, s.y, c.x * c.y);
+}
+
 /** Texel (16x16 per face) of the point `P` on the face N of its cell. */
 fn A(P: vec3f) -> vec2u {
   return vec2u(fract(vec2f(mix(P.x, P.z, N.x), select(P.z, -P.y, N.y == 0))) * 16);
@@ -47,7 +66,7 @@ fn F(u: vec2u) -> u32 {
   return 0;
 }
 
-/** Amanatides-Woo march past blocks up to `k`, returns the distance and leaves cell, face and block in C, N, K. Leaves and glass stop on opaque face texels, plants on the opaque texels of the two diagonal planes `x = z` and `x + z = 1` of their cell (N is then +x), any block on the outline band of the targeted cell. */
+/** Amanatides-Woo march past blocks up to `k`, returns the distance and leaves cell, face and block in C, N, K. Leaves and glass stop on opaque face texels, plants on the opaque texels of the two diagonal planes `x = z` and `x + z = 1` of their cell (N is then +x), any block on the outline band of the targeted cell. Under 99 steps it is the targeting march and stops on any whole cell that is neither air nor water. */
 fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
   let s = sign(d);
   let r = 1 / (abs(d) + 1e-6);
@@ -58,8 +77,9 @@ fn M(o: vec3f, d: vec3f, k: u32, n: i32) -> f32 {
     K = B(C);
     let t = dot(N, e - r);
     let P = o + d * t;
+    if n < 99 && min(K, K ^ WATER) > 0 { return t; }
     if K > k {
-      O = I(C) == U.h && any(abs(fract(P) - .5) * (1 - N) > vec3f(.48));
+      O = I(C) == W[5] && any(abs(fract(P) - .5) * (1 - N) > vec3f(.48));
       if O || (K > TUFT && F(A(P)) > 0) { return t; }
       if K < WATER {
         let p = P - vec3f(C);
@@ -110,7 +130,8 @@ fn X(b: u32, t: vec2u, n: vec3f) -> vec3f {
 
 /** Colour of the pixel at `q` (y down), its corner, so the crosshair arms are 1 px wide on an even canvas size and 2 px on an odd one. */
 fn f(q: vec2f) -> vec4f {
-  let fw = U.a;
+  let fw = look();
+  let eye = feet() + vec3f(0, 1.62, 0);
   let r = normalize(vec3f(fw.z, 0, -fw.x));
   let uv = (2 * q - U.r) / U.r.y;
   let d = normalize(fw * 1.4 + r * uv.x + cross(r, fw) * uv.y);
@@ -119,18 +140,18 @@ fn f(q: vec2f) -> vec4f {
   let D = saturate(L.y * 2 + .4);
   /** Sky gradient without sun or stars, also the colour distant terrain fades to. */
   let sky = mix(vec3f(.75, .85, 1), vec3f(.25, .5, 1), sqrt(saturate(d.y))) * D + .015;
-  let eyeIn = B(vec3i(U.p)) == WATER;
-  var t = M(U.p, d, u32(eyeIn) * WATER, 256);
+  let eyeIn = B(vec3i(floor(eye))) == WATER;
+  var t = M(eye, d, u32(eyeIn) * WATER, 256);
   var wd = f32(eyeIn) * t;
   /** Fog distance: to the water surface for water pixels, 0 under water where only the water tint applies. */
   let s = t - wd;
   if K == WATER {
-    wd = M(U.p + d * (t + .01), d, WATER, 128) + .01;
+    wd = M(eye + d * (t + .01), d, WATER, 128) + .01;
     t += wd;
   }
   var col = sky + vec3f(4, 4, 2) * pow(max(dot(d, L), 0), 2000) + step(.985, H(vec3u(d * 200 + 250))) * (1 - D);
   if K > 0 {
-    let P = U.p + d * t;
+    let P = eye + d * t;
     /** Plants are lit as an upward face, their +x plane normal would flip with the side they are seen from. */
     let n = select(-N * sign(d), vec3f(0, 1, 0), K < WATER);
     var u = A(P);
@@ -179,8 +200,69 @@ fn T(x: u32, z: u32) -> f32 {
   return floor(clamp(SEA + (e - .45) * (50 + m * 300) + m * (130 + abs(Q(p, 64) - .5) * 300), 2, 124));
 }
 
-/** Draws pixel `u.xy` once the canvas size is set, else generates the 4 columns of world word `u.x`. */
-@compute @workgroup_size(64) fn g(@builtin(global_invocation_id) u: vec3u) {
+/** Whether the 0.6 x 1.8 box standing on the feet position `p` overlaps a solid cell, sampled 0.9 apart on y so no cell is skipped. */
+fn hits(p: vec3f) -> bool {
+  for (var i = 0; i < 12; i++) {
+    if B(vec3i(floor(p + vec3f(f32(i & 1) * .6 - .3, f32(i % 3) * .9, f32(i / 6) * .6 - .3)))) > WATER { return true; }
+  }
+  return false;
+}
+
+/** One frame of the player: walk, swim, jump and fall with a per-axis collision (the contact is 2 when the feet landed, 1 against a wall), then the targeting march (reach 6) and the click of the frame. */
+fn tick() {
+  var p = feet();
+  let vy = bitcast<f32>(W[3]);
+  var contact = bitcast<f32>(W[4]);
+  let w = B(vec3i(floor(p))) == WATER;
+  let d = look();
+  let a = normalize(d.xz);
+  let j = U.k.z > 0;
+  let m = (U.k.x * a + U.k.y * vec2f(a.y, -a.x)) * select(4.3, 1.7, w);
+  let l = select(select(max(vy - 28 * U.d, -30), 8.5, j && contact > 1), select(max(vy - 8.4 * U.d, -2), select(3., 8.5, contact > 0), j), w);
+  var v = vec3f(m.x, l, m.y);
+  contact = 0;
+  for (var i = 0; i < 3; i++) {
+    p[i] += v[i] * U.d;
+    if hits(p) {
+      if i == 1 && v.y < 0 {
+        p.y = ceil(p.y);
+        contact = 2;
+      } else {
+        p[i] -= v[i] * U.d;
+        contact = max(contact, f32(~i & 1));
+      }
+      v[i] = 0;
+    }
+  }
+  W[0] = bitcast<u32>(p.x);
+  W[1] = bitcast<u32>(p.y);
+  W[2] = bitcast<u32>(p.z);
+  W[3] = bitcast<u32>(v.y);
+  W[4] = bitcast<u32>(contact);
+  let t = M(p + vec3f(0, 1.62, 0), d, WATER, 16);
+  W[5] = select(0xffffffffu, I(C), t < 6);
+  let b = i32(U.k.w);
+  if t >= 6 || b == 0 { return; }
+  let u = C + vec3i(0, 1, 0);
+  if b < 0 {
+    edit(C, 0);
+    if B(u) < WATER { edit(u, 0); }
+    return;
+  }
+  let c = select(C - vec3i(N * sign(d)), C, K < WATER);
+  let o = B(c);
+  if o <= WATER {
+    edit(c, u32(b));
+    if hits(p) { edit(c, o); }
+  }
+}
+
+/** Draws pixel `u.xy` once the canvas size is set, else generates the 4 columns of world word `u.x`, or steps the player in a lone workgroup. */
+@compute @workgroup_size(64) fn g(@builtin(global_invocation_id) u: vec3u, @builtin(num_workgroups) n: vec3u) {
+  if n.x < 2 {
+    if u.x < 1 { tick(); }
+    return;
+  }
   if U.r.x > 0 {
     textureStore(Z, u.xy, f(vec2f(u.xy)));
     return;
@@ -225,4 +307,6 @@ fn T(x: u32, z: u32) -> f32 {
       W[u.x | (y << 18)] |= b << (k * 8);
     }
   }
+  /** The spawn is the first player state, the other words start as bottom-layer stone, a speed and contact near 0. */
+  if u.x < 3 { W[u.x] = bitcast<u32>(vec3f(434.5, 100, 511.5)[u.x]); }
 }
