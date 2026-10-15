@@ -10,7 +10,7 @@ import { wgslPlugin } from './wgsl-plugin.ts';
 const root = `${import.meta.dir}/..`;
 /** The shader names are annealed in `CHAINS` parallel chains of `ROUNDS` steps (one per physical core), the smallest script wins. */
 const CHAINS = 6;
-const ROUNDS = 30000;
+const ROUNDS = 42000;
 
 interface BuildOptions {
 	/** Folder of the artifacts and of the size baseline, `dist` by default. */

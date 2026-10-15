@@ -123,7 +123,8 @@ export function assertRenamed(before: string[], after: string[]) {
 	});
 }
 
-const deflated = (s: string) => Bun.deflateSync(s, { level: 12, library: 'libdeflate' }).length;
+/** Level 10 is within a byte of level 12 on this script and a third faster, which buys the annealing a third more steps. */
+const deflated = (s: string) => Bun.deflateSync(s, { level: 10, library: 'libdeflate' }).length;
 
 /**
  * Renames every local, parameter and multi-letter global to the first free letter, most used first, except members, swizzles and builtin arguments.
