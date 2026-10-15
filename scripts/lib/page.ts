@@ -1,6 +1,7 @@
 /** Reads a packed page back like a browser (ISO-8859-15, CR normalized, `<xmp>` raw text to EOF, `onload` run after parsing) and runs its decoder against a fake canvas. */
 import { expect } from 'bun:test';
-import { pack } from '../pack.ts';
+import { parse as parseJs } from 'acorn';
+import { pack, SUFFIXES } from '../pack.ts';
 
 /** WHATWG ISO-8859-15 (label `l9`): identity except these bytes, hardcoded so the tests never trust the runtime's TextDecoder labels. Checked against Chrome 155. */
 const L9: Record<number, number> = { 0xa4: 0x20ac, 0xa6: 0x160, 0xa8: 0x161, 0xb4: 0x17d, 0xb8: 0x17e, 0xbc: 0x152, 0xbd: 0x153, 0xbe: 0x178 };
@@ -35,17 +36,39 @@ export async function check(js: string) {
 	const { decoded, html, raw } = trip;
 	expect(raw).not.toMatch(/<\/xmp[\t\n\f />]/i);
 	expect(html.includes(13)).toBe(false);
-	expect(decoded).toBe(js);
+	expect(SUFFIXES.map(s => js + s)).toContain(decoded);
 	return true;
 }
 
-/** Seeded noise (mulberry32) over `alphabet`, its deflate stream is dense in CR and escape bytes. */
-export function noise(length: number, seed: number, alphabet = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i))) {
+/** A seeded generator (mulberry32) of integers in `[0, 2^32)`. */
+function mulberry(seed: number) {
 	let s = seed;
-	return Array.from({ length }, () => {
+	return () => {
 		let t = (s = (s + 0x6d2b79f5) | 0);
 		t = Math.imul(t ^ (t >>> 15), t | 1);
 		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-		return alphabet[((t ^ (t >>> 14)) >>> 0) % alphabet.length]!;
-	}).join('');
+		return (t ^ (t >>> 14)) >>> 0;
+	};
+}
+
+/** Seeded noise over `alphabet`, its deflate stream is dense in CR and escape bytes. */
+export function noise(length: number, seed: number, alphabet = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i))) {
+	const next = mulberry(seed);
+	return Array.from({ length }, () => alphabet[next() % alphabet.length]!).join('');
+}
+
+/** `count` distinct near-copies of the script `js`, each one seeded edit away (a character replaced, inserted or deleted) and still valid JS. */
+export function variants(js: string, count: number, seed = 1) {
+	const next = mulberry(seed);
+	const out = new Set<string>();
+	while (out.size < count) {
+		const at = next() % js.length;
+		const ch = String.fromCharCode(97 + (next() % 26));
+		const edit = [js.slice(0, at) + ch + js.slice(at + 1), js.slice(0, at) + ch + js.slice(at), js.slice(0, at) + js.slice(at + 1)][next() % 3]!;
+		try {
+			parseJs(edit, { ecmaVersion: 'latest' });
+			out.add(edit);
+		} catch {}
+	}
+	return [...out];
 }

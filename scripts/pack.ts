@@ -3,7 +3,7 @@ import { cached } from './lib/cache.ts';
 import { search, zopfli } from './lib/pool.ts';
 
 /** The bytes a stream must avoid to be read as is: NUL, CR and the 8 bytes `l9` reads as other characters. */
-const FORBIDDEN = [0x00, 0x0d, 0xa4, 0xa6, 0xa8, 0xb4, 0xb8, 0xbc, 0xbd, 0xbe];
+export const FORBIDDEN = [0x00, 0x0d, 0xa4, 0xa6, 0xa8, 0xb4, 0xb8, 0xbc, 0xbd, 0xbe];
 /** The bytes the escaped decoder finds by `indexOf` in its lookup string: NUL, then 0xA4-0xBE which holds all 8 bytes ISO-8859-15 reads as other characters. */
 const TABLE = Uint8Array.from({ length: 28 }, (_, i) => (i ? i + 163 : 0));
 /** Escape candidates: every byte that is safe raw inside the `onload` quotes, a regex literal and a string (no NUL, controls, quotes, `\`, `/`, `&` or regex metacharacters). */
@@ -34,11 +34,22 @@ export async function candidates(input: Uint8Array<ArrayBuffer>): Promise<[strin
 const closesXmp = (stream: Uint8Array) => /<\/xmp[\t\n\f />]/i.test(Buffer.from(stream).toString('latin1'));
 
 /** The smallest stream of `seeds` searches that avoids `FORBIDDEN` and cannot close the `<xmp>`, undefined when none does (inputs of a few bytes). A search takes tens of seconds, so the stream is kept in `.cache` under a hash of the input and of the encoder. */
-const searched = (input: Uint8Array, seeds: number) =>
+const searched1 = (input: Uint8Array, seeds: number) =>
 	cached('search', ['lib/deflate.ts'], [input, `${FORBIDDEN}/${seeds}`], async () => {
 		const streams = await Promise.all(Array.from({ length: seeds }, (_, seed) => search(input, FORBIDDEN, seed)));
 		return streams.filter(s => s && !closesXmp(s)).reduce<Uint8Array | undefined>((a, s) => (!a || s!.length < a.length ? s : a), undefined);
 	});
+
+/** Trailing text that leaves a script's meaning alone, tried in turn when no seed finds a stream for the script itself (the decoded text is the script plus one of these). */
+export const SUFFIXES = ['', ';', ' ', '\n'];
+
+/** `searched1` for the script, else for the script with the first suffix that gives a stream. */
+async function searched(input: Uint8Array, seeds: number) {
+	for (const suffix of SUFFIXES) {
+		const stream = await searched1(Uint8Array.from([...input, ...ascii(suffix)]), seeds);
+		if (stream) return stream;
+	}
+}
 
 /** Escapes CR and the escape byte, or returns undefined when the stream would close the `<xmp>` it sits in. */
 export function encode(stream: Uint8Array): { data: Uint8Array; escape: number } | undefined {
@@ -64,7 +75,7 @@ export function render(data: Uint8Array, escape?: number) {
 	return page;
 }
 
-/** Packs `js` into a self-inflating page: the stream is the text of `<xmp>` (raw text up to EOF) inside `<canvas id=c>`, read back as `c.textContent` once `<body onload>` fires. The smallest page wins: the `search` stream, or an escaped candidate. */
+/** Packs `js` into a self-inflating page: the stream is the text of `<xmp>` (raw text up to EOF) inside `<canvas id=c>`, read back as `c.textContent` once `<body onload>` fires. The smallest page wins: the `search` stream (of `js`, or of `js` plus a `SUFFIXES` entry when none exists), or an escaped candidate. */
 export async function pack(js: string, seeds = SEEDS): Promise<Packed> {
 	const input = new TextEncoder().encode(js);
 	const pages: Packed[] = [];

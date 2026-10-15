@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
-import { check, noise } from './lib/page.ts';
-import { candidates, encode, pack, render } from './pack.ts';
+import { build } from './build.ts';
+import { check, noise, variants } from './lib/page.ts';
+import { search } from './lib/pool.ts';
+import { candidates, encode, FORBIDDEN, pack, render } from './pack.ts';
 
 test.concurrent.each([
 	['a small script', '(async()=>{c.width=1})()'],
@@ -31,3 +33,15 @@ test('the search stream avoids CR, NUL and the 8 bytes l9 changes, so its page n
 	expect(page).not.toContain('.replace(');
 	expect([...html.subarray(page.indexOf('<xmp>') + 5)].filter(b => [0, 13, 0xa4, 0xa6, 0xa8, 0xb4, 0xb8, 0xbc, 0xbd, 0xbe].includes(b))).toEqual([]);
 }, 120_000);
+
+/** The literals before the first match leave the constrained search a single path, so a forbidden byte on it used to fail 6 of 10 near-copies of the game. The initial run alone (0 rounds) decides that. */
+test('the constrained search finds a stream for 200 near-copies of the game', async () => {
+	await build(false, { out: `${import.meta.dir}/../.cache/game` });
+	const copies = variants(await Bun.file(`${import.meta.dir}/../.cache/game/min.js`).text(), 200, 7);
+	const streams = await Promise.all(copies.map(js => search(new TextEncoder().encode(js), FORBIDDEN, 0, 0)));
+	expect(streams.flatMap((s, i) => (s ? [] : [i]))).toEqual([]);
+	streams.forEach((s, i) => {
+		expect(s!.some(b => FORBIDDEN.includes(b))).toBe(false);
+		expect(new TextDecoder().decode(Bun.inflateSync(Uint8Array.from(s!)))).toBe(copies[i]!);
+	});
+}, 600_000);

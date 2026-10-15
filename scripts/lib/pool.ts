@@ -3,7 +3,7 @@ import { Worker } from 'node:worker_threads';
 import type { ZopfliOptions } from '@gfx/zopfli';
 
 /** What a worker runs: zopfli, or the `search` of `deflate.ts` (`seed` picks one of its deterministic runs). */
-export type Task = { input: Uint8Array; kind: 'zopfli'; options: ZopfliOptions } | { avoid: number[]; input: Uint8Array; kind: 'search'; seed: number };
+export type Task = { input: Uint8Array; kind: 'zopfli'; options: ZopfliOptions } | { avoid: number[]; input: Uint8Array; kind: 'search'; rounds: number; seed: number };
 
 interface Job {
 	reject: (error: Error) => void;
@@ -37,4 +37,4 @@ const run = (task: Task) =>
 
 export const zopfli = async (input: Uint8Array, options: ZopfliOptions) => (await run({ input, kind: 'zopfli', options }))!;
 
-export const search = (input: Uint8Array, avoid: number[], seed: number) => run({ avoid, input, kind: 'search', seed });
+export const search = (input: Uint8Array, avoid: number[], seed: number, rounds = 4) => run({ avoid, input, kind: 'search', rounds, seed });

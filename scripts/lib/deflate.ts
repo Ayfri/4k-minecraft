@@ -71,6 +71,13 @@ class Edges {
 	nb: number[] = [];
 	to: number[] = [];
 
+	/** These edges followed by `other`'s, which must start at a later node. */
+	concat(other: Edges) {
+		const out = new Edges();
+		for (const key of ['a', 'b', 'cl', 'dist', 'from', 'lit', 'na', 'nb', 'to'] as const) out[key] = this[key].concat(other[key]);
+		return out;
+	}
+
 	push(from: number, to: number, a: number, na: number, sym: { cl?: number; dist?: number; lit?: number }, b = 0, nb = 0) {
 		this.from.push(from);
 		this.to.push(to);
@@ -106,6 +113,15 @@ interface Token {
 	sym: number;
 	/** How many entries of the length list the token covers. */
 	span: number;
+}
+
+interface Head {
+	edges: Edges;
+	/** Length of the code-length list, the data nodes start there. */
+	m: number;
+	prefix: [number, number][];
+	/** Bit phase after the prefix. */
+	start: number;
 }
 
 /** The code lengths a dynamic block transmits: literal/length then distance, trailing zeros trimmed. */
@@ -155,6 +171,13 @@ function lengthCode(tokens: Token[][], rounds = 12) {
 		if (bits < best.bits) best = { bits, cl: len };
 	}
 	return best;
+}
+
+/** Bits of the cheapest tokenization under the fixed code lengths `cl`, header fields included. */
+function codedBits(tokens: Token[][], cl: Uint8Array) {
+	const cost = new Float64Array(tokens.length + 1);
+	for (let p = tokens.length - 1; p >= 0; p--) cost[p] = Math.min(INF, ...tokens[p]!.map(t => (cl[t.sym] ? cl[t.sym]! + t.count + cost[p + t.span]! : INF)));
+	return 17 + 3 * Math.max(4, CL_ORDER.findLastIndex(s => cl[s]) + 1) + cost[0]!;
 }
 
 /** Bits of a dynamic block header for these code lengths. */
@@ -212,36 +235,55 @@ export class Deflater {
 		return -1;
 	}
 
-	/** The code-length list of `model` as the edges of nodes 0..list length, plus the stream prefix before it and the bit phase it ends in. The code for the code lengths is the cheapest one whose prefix holds no forbidden byte (swapping two lengths when the best does), undefined when none does. */
-	private header(model: Model, edges: Edges) {
+	/** The header for the code lengths `cl` of the list `tokens`: its code-length edges as nodes 0..list length, the stream prefix before them and the bit phase it ends in, undefined when the prefix holds a forbidden byte. */
+	private open(hlit: number, hdist: number, tokens: Token[][], cl: Uint8Array): Head | undefined {
+		const hclen = Math.max(4, CL_ORDER.findLastIndex(s => cl[s]) + 1);
+		const prefix: [number, number][] = [[1, 1], [2, 2], [hlit - 257, 5], [hdist - 1, 5], [hclen - 4, 4], ...CL_ORDER.slice(0, hclen).map((s): [number, number] => [cl[s]!, 3])];
+		const start = prefix.reduce((state, [bits, count]) => (state < 0 ? state : this.append(state, bits, count)), 1);
+		if (start < 0) return undefined;
+		const edges = new Edges();
+		const clCodes = codes(cl);
+		tokens.forEach((options, p) => {
+			for (const t of options) if (cl[t.sym]) edges.push(p, p + t.span, clCodes[t.sym]! | (t.bits << cl[t.sym]!), cl[t.sym]! + t.count, { cl: t.sym });
+		});
+		return { edges, m: tokens.length, prefix, start };
+	}
+
+	/** The headers to try for `model`: the cheapest code for the code lengths whose prefix holds no forbidden byte (swapping two of its lengths when the best does), then the next cheapest swaps. A header fixes the bit phase of what follows, and the literals before the first match have no other way around a forbidden byte. */
+	private *headers(model: Model, limit = 8) {
 		const { hdist, hlit, list } = lengthList(model);
 		const tokens = tokensOf(list);
 		const { cl: best } = lengthCode(tokens);
 		const used = Array.from(best.keys()).filter(s => best[s]);
-		const variants = [best, ...used.flatMap(a => used.filter(b => b > a && best[a] !== best[b]).map(b => best.slice().fill(best[a]!, b, b + 1).fill(best[b]!, a, a + 1)))];
-		for (const cl of variants) {
-			const hclen = Math.max(4, CL_ORDER.findLastIndex(s => cl[s]) + 1);
-			const prefix: [number, number][] = [[1, 1], [2, 2], [hlit - 257, 5], [hdist - 1, 5], [hclen - 4, 4], ...CL_ORDER.slice(0, hclen).map((s): [number, number] => [cl[s]!, 3])];
-			const start = prefix.reduce((state, [bits, count]) => (state < 0 ? state : this.append(state, bits, count)), 1);
-			if (start < 0) continue;
-			const clCodes = codes(cl);
-			tokens.forEach((options, p) => {
-				for (const t of options) if (cl[t.sym]) edges.push(p, p + t.span, clCodes[t.sym]! | (t.bits << cl[t.sym]!), cl[t.sym]! + t.count, { cl: t.sym });
-			});
-			return { m: list.length, prefix, start };
+		const codings = [best, ...used.flatMap(a => used.filter(b => b > a && best[a] !== best[b]).map(b => best.slice().fill(best[a]!, b, b + 1).fill(best[b]!, a, a + 1)))];
+		const first = codings.find(cl => this.open(hlit, hdist, tokens, cl));
+		if (!first) return;
+		yield this.open(hlit, hdist, tokens, first)!;
+		const rest = codings.filter(cl => cl !== first).map(cl => ({ bits: codedBits(tokens, cl), cl }));
+		let tried = 0;
+		for (const { cl } of rest.sort((x, y) => x.bits - y.bits)) {
+			const head = tried < limit && this.open(hlit, hdist, tokens, cl);
+			if (head) (tried++, yield head);
 		}
 	}
 
-	/** The cheapest stream under `model`: bit phases within `slack` bits of the best at each node are kept, `ways` distances per match length, `avoid` are byte values the stream must not contain. */
-	run(model: Model, { avoid = [] as number[], slack = 12, ways = 4 } = {}): Result | undefined {
-		const { data } = this;
+	/** The cheapest stream under `model`: bit phases within `slack` bits of the best at each node are kept, `ways` distances per match length, `avoid` are byte values the stream must not contain. The first header that leads to a valid stream wins. */
+	run(model: Model, options = {} as { avoid?: number[]; slack?: number; ways?: number }): Result | undefined {
 		this.bad.fill(0);
-		for (const b of avoid) this.bad[b] = 1;
-		const n = data.length;
+		for (const b of options.avoid ?? []) this.bad[b] = 1;
+		let body: Edges | undefined;
+		for (const head of this.headers(model)) {
+			body ??= this.body(model, head.m, options.ways ?? 4);
+			const result = this.walk(head, body, options.slack ?? 12);
+			if (result) return result;
+		}
+	}
+
+	/** The edges of the data nodes `m..m + length + 1` under `model`: they do not depend on the header, only on where it ends. */
+	private body(model: Model, m: number, ways: number) {
+		const { data } = this;
 		const edges = new Edges();
-		const head = this.header(model, edges);
-		if (!head) return undefined;
-		const { m, prefix, start } = head;
+		const n = data.length;
 		const { dist: dists, lit: lits } = model;
 		const litCodes = codes(lits);
 		const distCodes = codes(dists);
@@ -269,9 +311,13 @@ export class Deflater {
 			}
 		}
 		const last = m + n;
-		const end = last + 1;
-		edges.push(last, end, litCodes[EOB]!, lits[EOB]!, { lit: EOB });
+		edges.push(last, last + 1, litCodes[EOB]!, lits[EOB]!, { lit: EOB });
+		return edges;
+	}
 
+	private walk({ edges: header, m, prefix, start }: Head, body: Edges, slack: number): Result | undefined {
+		const edges = header.concat(body);
+		const end = m + this.data.length + 1;
 		const total = end + 1;
 		const first = new Int32Array(total + 1).fill(edges.from.length);
 		for (let e = edges.from.length - 1; e >= 0; e--) first[edges.from[e]!] = e;
@@ -334,6 +380,9 @@ export class Deflater {
 	}
 }
 
+/** How many literal code length swaps `search` tries when the optimal code has no valid stream. */
+const SWAPS = 16;
+
 interface Counts {
 	dist: number[];
 	lit: number[];
@@ -347,7 +396,18 @@ export function search(data: Uint8Array, avoid = [0, 13], rounds = 4, { slack = 
 	for (const b of data) lit[b]! += 4;
 	let model: Model = { dist: huffman(Array.from({ length: 30 }, () => 1), 15), lit: huffman(lit, 15) };
 	for (let i = 0; i < 12; i++) model = Deflater.model(deflater.run(model, { slack: 0, ways: 1 })!, 12);
-	let cur = deflater.run(Deflater.model(deflater.run(model, { slack: 0, ways: 1 })!), opts);
+	const free = deflater.run(model, { slack: 0, ways: 1 })!;
+	const optimal = Deflater.model(free);
+	let cur = deflater.run(optimal, opts);
+	/** A stretch of literals before the first match has one path, so a forbidden byte on it kills every stream under this code. Exchanging the lengths of two literals (the cheapest exchanges first) gives that stretch other codes. */
+	const used = Array.from(optimal.lit.keys()).filter(s => optimal.lit[s]);
+	const exchanges = used.flatMap(x => used.filter(y => y > x && optimal.lit[x] !== optimal.lit[y]).map((y): [number, number] => [x, y]));
+	const price = ([x, y]: [number, number]) => (free.lit[x]! - free.lit[y]!) * (optimal.lit[y]! - optimal.lit[x]!);
+	for (const [x, y] of cur ? [] : exchanges.sort((p, q) => price(p) - price(q)).slice(0, SWAPS)) {
+		const lit = optimal.lit.slice();
+		[lit[x], lit[y]] = [lit[y]!, lit[x]!];
+		if ((cur = deflater.run({ dist: optimal.dist, lit }, opts))) break;
+	}
 	let best = cur;
 	let seed = start;
 	const rnd = () => {
@@ -383,8 +443,9 @@ export function search(data: Uint8Array, avoid = [0, 13], rounds = 4, { slack = 
 		return out;
 	};
 	const steps = Math.min(2000, data.length >> 2);
-	for (let round = 0; cur && round < rounds; round++) {
-		const f: Counts = { dist: cur.dist, lit: cur.lit };
+	for (let round = 0; round < rounds; round++) {
+		const src = cur ?? best ?? free;
+		const f: Counts = { dist: src.dist, lit: src.lit };
 		let g: Counts = { dist: f.dist.slice(), lit: f.lit.slice() };
 		let c = cost(g, f);
 		for (let i = 0; i < steps; i++) {
@@ -393,7 +454,7 @@ export function search(data: Uint8Array, avoid = [0, 13], rounds = 4, { slack = 
 			if (nc <= c) [c, g] = [nc, next];
 		}
 		cur = deflater.run(modelOf(g), opts);
-		if (cur && cur.bits < best!.bits) best = cur;
+		if (cur && cur.bits < (best?.bits ?? Infinity)) best = cur;
 	}
 	return best?.bytes;
 }
