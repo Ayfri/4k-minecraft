@@ -183,11 +183,21 @@ function codedBits(tokens: Token[][], cl: Uint8Array) {
 /** Bits of a dynamic block header for these code lengths. */
 export const headerBits = (model: Model) => 17 + lengthCode(tokensOf(lengthList(model).list)).bits;
 
+/** How many bytes come before the first one that a match (3 bytes seen at most 32768 back) can start at, the data length when none can. */
+export function leadOf(data: Uint8Array) {
+	const last = new Map<number, number>();
+	for (let i = 0; i + 2 < data.length; i++) {
+		const key = data[i]! | (data[i + 1]! << 8) | (data[i + 2]! << 16);
+		if (i - (last.get(key) ?? -Infinity) <= 32768) return i;
+		last.set(key, i);
+	}
+	return data.length;
+}
+
 export class Deflater {
 	/** Per position, the earlier distances that match at least 3 bytes and how long. */
 	private readonly matches: { d: number[]; l: number[] }[];
 	private readonly bad = new Uint8Array(256);
-	/** How many bytes come before the first one that a match can start at (the data length when none can). */
 	readonly lead: number;
 
 	constructor(readonly data: Uint8Array) {
@@ -203,8 +213,7 @@ export class Deflater {
 			}
 			[prev, cur] = [cur, prev];
 		}
-		const lead = this.matches.findIndex(m => m.d.length);
-		this.lead = lead < 0 ? n : lead;
+		this.lead = leadOf(data);
 	}
 
 	/** A model from the symbol counts of a result, symbols it never used get `spare` bits when set (exploring) and are unavailable otherwise. */
@@ -391,6 +400,9 @@ const FULL = 6;
 /** What a probe returns when some stream gets through. */
 const ALIVE: Result = { bits: 0, bytes: new Uint8Array(), cl: [], dist: [], lit: [] };
 
+/** A code gets through the literals before the first match with chance `(1 - avoid / 256) ** lead` and `search` tries `SWAPS + 1` codes: below 0.1 expected streams it is hopeless (2 KB of printable noise), and no suffix changes that. */
+export const hopeless = (data: Uint8Array, avoid: number[]) => (1 - avoid.length / 256) ** leadOf(data) * (SWAPS + 1) < 0.1;
+
 interface Counts {
 	dist: number[];
 	lit: number[];
@@ -398,6 +410,7 @@ interface Counts {
 
 /** Deterministic search for the smallest stream without `avoid` bytes: optimal parses under integer code lengths, with the symbol counts smoothed until the exact header plus data cost stops falling. */
 export function search(data: Uint8Array, avoid = [0, 13], rounds = 4, { slack = 12, ways = 4, seed: start = 777 } = {}) {
+	if (hopeless(data, avoid)) return;
 	const deflater = new Deflater(data);
 	const opts = { avoid, slack, ways };
 	const lit = Array.from({ length: 286 }, () => 1);

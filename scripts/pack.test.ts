@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { build } from './build.ts';
+import { hopeless } from './lib/deflate.ts';
 import { check, noise, variants } from './lib/page.ts';
 import { search } from './lib/pool.ts';
 import { candidates, encode, FORBIDDEN, pack, render } from './pack.ts';
@@ -32,6 +33,17 @@ test('the search stream avoids CR, NUL and the 8 bytes l9 changes, so its page n
 	expect(codec).toBe('search');
 	expect(page).not.toContain('.replace(');
 	expect([...html.subarray(page.indexOf('<xmp>') + 5)].filter(b => [0, 13, 0xa4, 0xa6, 0xa8, 0xb4, 0xb8, 0xbc, 0xbd, 0xbe].includes(b))).toEqual([]);
+}, 120_000);
+
+test('2 KB of printable noise is hopeless for the constrained search at once, the game is not', async () => {
+	await build(false, { out: `${import.meta.dir}/../.cache/game` });
+	const game = new TextEncoder().encode(await Bun.file(`${import.meta.dir}/../.cache/game/min.js`).text());
+	expect(hopeless(game, FORBIDDEN)).toBe(false);
+	const start = performance.now();
+	const noisy = new TextEncoder().encode(noise(2000, 1));
+	expect(hopeless(noisy, FORBIDDEN)).toBe(true);
+	expect(await search(noisy, FORBIDDEN, 0)).toBeUndefined();
+	expect(performance.now() - start).toBeLessThan(5000);
 }, 120_000);
 
 /** The literals before the first match leave the constrained search a single path, so a forbidden byte on it used to fail 6 of 10 near-copies of the game. The initial run alone (0 rounds) decides that. */

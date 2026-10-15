@@ -1,5 +1,6 @@
 /** The deflate stream sits in an `<xmp>` read as ISO-8859-15 (`l9`, identity except 8 bytes). The parser rewrites CR and NUL and `l9` reads 8 bytes as other characters, so the stream either avoids all 10 byte values (`search`, read as is) or escapes CR (`E1`) and `E` itself (`E0`) and looks the rest up. */
 import { cached } from './lib/cache.ts';
+import { hopeless } from './lib/deflate.ts';
 import { search, zopfli } from './lib/pool.ts';
 
 /** The bytes a stream must avoid to be read as is: NUL, CR and the 8 bytes `l9` reads as other characters. */
@@ -43,8 +44,9 @@ const searched1 = (input: Uint8Array, seeds: number) =>
 /** Trailing text that leaves a script's meaning alone, tried in turn when no seed finds a stream for the script itself (the decoded text is the script plus one of these). */
 export const SUFFIXES = ['', ';', ' ', '\n'];
 
-/** `searched1` for the script, else for the script with the first suffix that gives a stream. */
+/** `searched1` for the script, else for the script with the first suffix that gives a stream, none when the script is `hopeless` (a suffix leaves its first match where it is). */
 async function searched(input: Uint8Array, seeds: number) {
+	if (hopeless(input, FORBIDDEN)) return;
 	for (const suffix of SUFFIXES) {
 		const stream = await searched1(Uint8Array.from([...input, ...ascii(suffix)]), seeds);
 		if (stream) return stream;
