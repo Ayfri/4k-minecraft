@@ -1,4 +1,4 @@
-/** Numeric exports are substituted by name into `shader.wgsl` at build time. The functions are the CPU reference of the shader's player step and targeting (`tick`, `hits`, `M`), never shipped: the tests, the bot planner and the DEV drift check use them. */
+/** Numeric exports are substituted by name into `shader.wgsl` at build time. The functions are the CPU reference of the shader's player step and targeting, never shipped: `collides` mirrors `hits`, `move` the per-axis collision of `tick`, `lift` its vertical velocity and `target` the march `M` it calls. The tests, the bot planner and the DEV drift check use them. */
 export const SIZE = 1024;
 export const MASK = SIZE - 1;
 export const HEIGHT = 128;

@@ -2,6 +2,7 @@
 import { expect } from 'bun:test';
 import { parse as parseJs } from 'acorn';
 import { pack, SUFFIXES } from '../pack.ts';
+import { mulberry } from './random.ts';
 
 /** WHATWG ISO-8859-15 (label `l9`): identity except these bytes, hardcoded so the tests never trust the runtime's TextDecoder labels. Checked against Chrome 155. */
 const L9: Record<number, number> = { 0xa4: 0x20ac, 0xa6: 0x160, 0xa8: 0x161, 0xb4: 0x17d, 0xb8: 0x17e, 0xbc: 0x152, 0xbd: 0x153, 0xbe: 0x178 };
@@ -38,17 +39,6 @@ export async function check(js: string) {
 	expect(html.includes(13)).toBe(false);
 	expect(SUFFIXES.map(s => js + s)).toContain(decoded);
 	return true;
-}
-
-/** A seeded generator (mulberry32) of integers in `[0, 2^32)`. */
-function mulberry(seed: number) {
-	let s = seed;
-	return () => {
-		let t = (s = (s + 0x6d2b79f5) | 0);
-		t = Math.imul(t ^ (t >>> 15), t | 1);
-		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-		return (t ^ (t >>> 14)) >>> 0;
-	};
 }
 
 /** Seeded noise over `alphabet`, its deflate stream is dense in CR and escape bytes. */

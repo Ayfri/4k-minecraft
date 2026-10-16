@@ -1,6 +1,7 @@
 /** Picks the name of every local binding by the deflate size of the whole script instead of by length, scope analysis keeps the program equivalent. */
 import { analyze, type Scope, type Variable } from 'eslint-scope';
 import type { Program } from 'estree';
+import { mulberry } from './lib/random.ts';
 import type { Part } from './print.ts';
 import { renameWgsl } from './wgsl.ts';
 
@@ -73,7 +74,7 @@ export class Bindings {
 const HOLE = '\u0001';
 
 /** The script text for `names`, adjacent text pieces are merged once so a render is one join. The `hole` text, once in the parts, renders as `HOLE`. */
-export function renderer(parts: Part[], hole?: string) {
+function renderer(parts: Part[], hole?: string) {
 	const texts: string[] = [''];
 	const slots: number[] = [];
 	for (const p of parts)
@@ -136,13 +137,8 @@ export function chooseNames(parts: Part[], bindings: Bindings, rounds = 2, shade
 		literal = JSON.stringify(renameWgsl(shader.src, shader.rounds, [`${js.slice(0, at)}"`, `"${js.slice(at + 1)}`], shader.seed));
 		descend();
 		/** Annealing steps of single names, the swap with the one binding of its conflicts that has the name when there is one. */
-		let seed = shader.seed ?? 1;
-		const random = () => {
-			let t = (seed = (seed + 0x6d2b79f5) | 0);
-			t = Math.imul(t ^ (t >>> 15), t | 1);
-			t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-			return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
-		};
+		const next = mulberry(shader.seed ?? 1);
+		const random = () => next() / 2 ** 32;
 		let current = best;
 		let bestNames = [...names];
 		for (let step = 0; names.length && step < STEPS; step++) {

@@ -4,9 +4,9 @@ import { ANY, type Blueprint } from './blueprints.ts';
 /** Eye height above the feet, as in the frame loop of `main.ts`. */
 export const EYE = 1.62;
 /** Under the 6 blocks of `target`. */
-export const REACH = 5.8;
+const REACH = 5.8;
 /** Cells around the blueprint box that are levelled with it (ground at y 0, air up to y 3). */
-export const MARGIN = 2;
+const MARGIN = 2;
 
 /** Stand cells reachable from the start: route cost and the previous cell (-1 for the start), keyed by `idx`. */
 export type Explored = Map<number, [cost: number, prev: number]>;

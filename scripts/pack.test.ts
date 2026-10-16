@@ -32,7 +32,7 @@ test('the search stream avoids CR, NUL and the 8 bytes l9 changes, so its page n
 	const page = Buffer.from(html).toString('latin1');
 	expect(codec).toBe('search');
 	expect(page).not.toContain('.replace(');
-	expect([...html.subarray(page.indexOf('<xmp>') + 5)].filter(b => [0, 13, 0xa4, 0xa6, 0xa8, 0xb4, 0xb8, 0xbc, 0xbd, 0xbe].includes(b))).toEqual([]);
+	expect([...html.subarray(page.indexOf('<xmp>') + 5)].filter(b => FORBIDDEN.includes(b))).toEqual([]);
 }, 120_000);
 
 test('2 KB of printable noise is hopeless for the constrained search at once, the game is not', async () => {
@@ -46,7 +46,7 @@ test('2 KB of printable noise is hopeless for the constrained search at once, th
 	expect(performance.now() - start).toBeLessThan(5000);
 }, 120_000);
 
-/** The literals before the first match leave the constrained search a single path, so a forbidden byte on it used to fail 6 of 10 near-copies of the game. The initial run alone (0 rounds) decides that, with the `SUFFIXES` retries the packer makes. */
+/** The literals before the first match leave the constrained search a single path, so a forbidden byte on it can fail a near-copy of the game. The initial run alone (0 rounds) decides that, with the `SUFFIXES` retries the packer makes. */
 test('the constrained search finds a stream for 200 near-copies of the game', async () => {
 	await build(false, { out: `${import.meta.dir}/../.cache/game` });
 	const copies = variants(await Bun.file(`${import.meta.dir}/../.cache/game/min.js`).text(), 200, 7);

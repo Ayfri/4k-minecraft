@@ -1,4 +1,6 @@
 /** A raw deflate encoder that searches the exact bit stream (parse, Huffman header and bit phase) for the smallest stream without forbidden bytes. */
+import { mulberry } from './random.ts';
+
 const LEN_BASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
 const LEN_BITS = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
 const DIST_BASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
@@ -11,7 +13,7 @@ const LEN_CODE = Uint8Array.from({ length: 259 }, (_, l) => LEN_BASE.findLastInd
 const DIST_CODE = Uint8Array.from({ length: 32769 }, (_, d) => DIST_BASE.findLastIndex(b => b <= d));
 
 /** Code lengths of at most `limit` bits for `freq`: Huffman merges, counts halved until the limit holds. */
-export function huffman(freq: ArrayLike<number>, limit: number): Uint8Array {
+function huffman(freq: ArrayLike<number>, limit: number): Uint8Array {
 	const lengths = new Uint8Array(freq.length);
 	const used = Array.from({ length: freq.length }, (_, i) => i)
 		.filter(i => freq[i])
@@ -91,14 +93,14 @@ class Edges {
 	}
 }
 
-export interface Model {
+interface Model {
 	/** Code length of every distance symbol (0..29), 0 makes a symbol unavailable. */
 	dist: Uint8Array;
 	/** Code length of every literal/length symbol (0..285), 0 makes a symbol unavailable. */
 	lit: Uint8Array;
 }
 
-export interface Result {
+interface Result {
 	/** Stream length in bits before the zero padding of the last byte. */
 	bits: number;
 	bytes: Uint8Array;
@@ -181,10 +183,10 @@ function codedBits(tokens: Token[][], cl: Uint8Array) {
 }
 
 /** Bits of a dynamic block header for these code lengths. */
-export const headerBits = (model: Model) => 17 + lengthCode(tokensOf(lengthList(model).list)).bits;
+const headerBits = (model: Model) => 17 + lengthCode(tokensOf(lengthList(model).list)).bits;
 
 /** How many bytes come before the first one that a match (3 bytes seen at most 32768 back) can start at, the data length when none can. */
-export function leadOf(data: Uint8Array) {
+function leadOf(data: Uint8Array) {
 	const last = new Map<number, number>();
 	for (let i = 0; i + 2 < data.length; i++) {
 		const key = data[i]! | (data[i + 1]! << 8) | (data[i + 2]! << 16);
@@ -194,7 +196,7 @@ export function leadOf(data: Uint8Array) {
 	return data.length;
 }
 
-export class Deflater {
+class Deflater {
 	/** Per position, the earlier distances that match at least 3 bytes and how long. */
 	private readonly matches: { d: number[]; l: number[] }[];
 	private readonly bad = new Uint8Array(256);
@@ -434,13 +436,8 @@ export function search(data: Uint8Array, avoid = [0, 13], rounds = 4, { slack = 
 		if ((cur = deflater.run(swapped, opts)) || ++full === FULL) break;
 	}
 	let best = cur;
-	let seed = start;
-	const rnd = () => {
-		let t = (seed = (seed + 0x6d2b79f5) | 0);
-		t = Math.imul(t ^ (t >>> 15), t | 1);
-		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-	};
+	const next = mulberry(start);
+	const rnd = () => next() / 2 ** 32;
 	const modelOf = (g: Counts): Model => ({ dist: huffman(g.dist, 15), lit: huffman(g.lit, 15) });
 	/** Exact bits of the parse counted in `f` under the code built from the smoothed counts `g`. */
 	const cost = (g: Counts, f: Counts) => {

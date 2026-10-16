@@ -2,10 +2,10 @@
 import type { ArrowFunctionExpression, CallExpression, Expression, Node, Program, Statement, VariableDeclarator } from 'estree';
 import { Bindings } from './rename.ts';
 
-export type Visitor = (node: Node) => Node | void;
+type Visitor = (node: Node) => Node | void;
 
 /** Post-order walk, a visitor result replaces the node it was called with. */
-export function walk<T extends Node>(node: T, visit: Visitor): T {
+function walk<T extends Node>(node: T, visit: Visitor): T {
 	for (const [key, value] of Object.entries(node)) {
 		if (key === 'range' || !value || typeof value !== 'object') continue;
 		if (Array.isArray(value)) value.forEach((v, i) => v && typeof v.type === 'string' && (value[i] = walk(v, visit)));
@@ -259,7 +259,7 @@ const inlineCalls = (ast: Program) => {
 };
 
 /** The rewrites, by name, in the order they run. */
-export const REWRITES: Record<string, (ast: Program) => void> = {
+const REWRITES: Record<string, (ast: Program) => void> = {
 	inlineConstants,
 	dropDead,
 	varify,

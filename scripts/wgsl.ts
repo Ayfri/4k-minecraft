@@ -1,3 +1,5 @@
+import { mulberry } from './lib/random.ts';
+
 /** Strips comments and every space WGSL does not need, keeping `a - -b` and `a + +b` apart so they never lex as `--` or `++`. */
 export const minifyWgsl = (s: string) =>
 	s
@@ -150,12 +152,8 @@ export function renameWgsl(s: string, rounds = 0, frame: [string, string] = ['',
 		const texts = parts.map((_, i) => text(i));
 		const render = () => frame[0] + order.map(i => texts[i]).join('') + frame[1];
 		const refresh = (n: Name) => n.itemsUsing.forEach(i => (texts[i] = text(i)));
-		const random = () => {
-			seed = (seed + 0x6d2b79f5) | 0;
-			let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-			t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-			return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
-		};
+		const next = mulberry(seed);
+		const random = () => next() / 2 ** 32;
 		const movable = order.filter(i => !pinned.includes(i));
 		let current = deflated(render());
 		let best = current;

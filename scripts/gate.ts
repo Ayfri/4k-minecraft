@@ -1,4 +1,4 @@
-/** tsc and tests together, then build, then the page check: one table, output of failed steps only. `--fuzz`, `--shot <path>`, `--out <dir>`. */
+/** Build, then tsc and tests together (the e2e test reads `dist/index.html`, fresh unless `--out` points elsewhere), then the page check: one table, output of failed steps only. `--fuzz`, `--shot <path>`, `--out <dir>`. */
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { build } from './build.ts';
@@ -43,8 +43,8 @@ const page = async (): Promise<Result> => {
 };
 
 const start = performance.now();
-const steps = await Promise.all([timed('tsc', tsc), timed('test', tests('test')), ...(values.fuzz ? [timed('fuzz', tests('run', 'test:fuzz'))] : [])]);
-if (steps.every(s => s.ok)) steps.push(await timed('build', async () => ({ detail: await build(false, { out }), ok: true, output: '' })));
+const steps = [await timed('build', async () => ({ detail: await build(false, { out }), ok: true, output: '' }))];
+if (steps.every(s => s.ok)) steps.push(...(await Promise.all([timed('tsc', tsc), timed('test', tests('test')), ...(values.fuzz ? [timed('fuzz', tests('run', 'test:fuzz'))] : [])])));
 if (steps.every(s => s.ok)) steps.push(await timed('verify', page));
 
 const ok = steps.every(s => s.ok);

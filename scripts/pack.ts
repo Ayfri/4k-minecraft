@@ -36,7 +36,7 @@ const closesXmp = (stream: Uint8Array) => /<\/xmp[\t\n\f />]/i.test(Buffer.from(
 
 /** The smallest stream of `seeds` searches that avoids `FORBIDDEN` and cannot close the `<xmp>`, undefined when none does (inputs of a few bytes). A search takes tens of seconds, so the stream is kept in `.cache` under a hash of the input and of the encoder. */
 const searched1 = (input: Uint8Array, seeds: number) =>
-	cached('search', ['lib/deflate.ts'], [input, `${FORBIDDEN}/${seeds}`], async () => {
+	cached('search', ['lib/deflate.ts', 'lib/random.ts'], [input, `${FORBIDDEN}/${seeds}`], async () => {
 		const streams = await Promise.all(Array.from({ length: seeds }, (_, seed) => search(input, FORBIDDEN, seed)));
 		return streams.filter(s => s && !closesXmp(s)).reduce<Uint8Array | undefined>((a, s) => (!a || s!.length < a.length ? s : a), undefined);
 	});
