@@ -68,6 +68,17 @@ Chrome on Windows with WebGPU, opening the file straight from `file://`, is the 
 
 **WGSL minify, rename and constants.** The shader is stripped of comments and every optional space, its declared multi-letter names are renamed to the shortest free ones (most used first), and the numeric exports of `src/world.ts` (`SIZE`, `HEIGHT`, `WATER`, ...) are substituted into it by name, so game and shader share one set of constants.
 
+## Deploy
+
+`wrangler.jsonc` publishes `dist/` as an assets-only Cloudflare Worker, with no Worker script. `dist/.assetsignore` uploads `index.html` alone, and `dist/_headers` serves it as plain `text/html`: wrangler labels HTML `charset=utf-8`, a charset in the header overrides the page's `<meta charset>`, and the decoder then reads the wrong bytes.
+
+```powershell
+bunx wrangler login
+bun run deploy        # build, then wrangler deploy
+```
+
+Workers Builds (the Git integration) needs the Worker named `4k-minecraft`, an empty build command and the default deploy command `npx wrangler deploy`. The committed `dist/index.html` is the deployed page: a build in CI has neither the `google-closure-compiler` binary nor the `.cache`, and lands above 4096 B. The build image ships an older Bun than the one that wrote `bun.lock`, so the `BUN_VERSION` build variable needs `1.4.3`.
+
 ## Development
 
 ```powershell

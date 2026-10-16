@@ -1,0 +1,3 @@
+# Wrangler serves HTML as utf-8 and a header charset beats the page's <meta charset>, so the header drops it and the packer's codec decides.
+/
+	Content-Type: text/html

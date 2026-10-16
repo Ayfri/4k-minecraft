@@ -7,6 +7,7 @@
     "bot": "bun scripts/bot.ts",
     "build": "bun scripts/build.ts",
     "check": "tsc",
+    "deploy": "bun scripts/build.ts && wrangler deploy",
     "dev": "bun scripts/serve.ts",
     "gate": "bun scripts/gate.ts",
     "screenshots": "bun scripts/screenshots.ts",
@@ -24,6 +25,7 @@
     "@webgpu/types": "^0.1.74",
     "acorn": "^8.19.0",
     "eslint-scope": "^9.1.2",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "wrangler": "^4.151.0"
   }
 }

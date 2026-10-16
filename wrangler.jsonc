@@ -1,0 +1,8 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "4k-minecraft",
+	"compatibility_date": "2026-10-15",
+	"assets": {
+		"directory": "./dist"
+	}
+}

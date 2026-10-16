@@ -4,6 +4,8 @@ node_modules
 # output, only the packed page is committed
 dist/*
 !dist/index.html
+!dist/.assetsignore
+!dist/_headers
 
 # logs
 logs
@@ -11,6 +13,7 @@ logs
 
 # caches
 .cache
+.wrangler
 *.tsbuildinfo
 
 # IDE settings
