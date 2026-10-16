@@ -8,6 +8,7 @@ Not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang Syne
 
 - [Play the game](https://4k-minecraft.ayfri.com/): the 4 KB page itself, click to lock the pointer and play.
 - [About page](https://4k-minecraft.ayfri.com/about): screenshot, features, controls and browser requirements in plain HTML.
+- [Source code](https://github.com/Ayfri/4k-minecraft): the game, the shader and the build that packs them, under the GPL 3.0.
 
 ## What it is
 
