@@ -2,6 +2,9 @@
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "4k-minecraft",
 	"compatibility_date": "2026-10-15",
+	"workers_dev": false,
+	"preview_urls": false,
+	"routes": [{ "pattern": "4k-minecraft.ayfri.com", "custom_domain": true }],
 	"assets": {
 		"directory": "./dist"
 	}

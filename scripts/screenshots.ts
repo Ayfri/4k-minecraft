@@ -33,7 +33,9 @@ const only = Bun.argv.slice(2);
 const wanted = (name: string) => !only.length || only.includes(name);
 const write = async (page: Page, name: string) => {
 	const png = await page.view.screenshot({ encoding: 'buffer' });
-	const size = await Bun.write(`${root}/screenshots/${name}.webp`, await new Bun.Image(png).webp({ quality: 80 }).bytes());
+	const webp = await new Bun.Image(png).webp({ quality: 80 }).bytes();
+	const size = await Bun.write(`${root}/screenshots/${name}.webp`, webp);
+	if (name === 'hero') await Bun.write(`${root}/dist/hero.webp`, webp);
 	console.log(`${name} ${(size / 1024).toFixed(0)} KB`);
 };
 
@@ -47,7 +49,7 @@ for (const { eval: code, name } of views.filter(v => wanted(v.name))) {
 if (wanted('house')) {
 	await page.run('bot.at(434.5, 511.5, 0, 0)');
 	const result = await runBot(page, 'house', HOUSE_NEAR);
-	if (result.check.missing.length || result.error || result.failures.length) throw new Error(`the house build failed: ${result.error ?? result.failures.join(', ') ?? result.check.missing}`);
+	if (result.check.missing.length || result.error || result.failures.length) throw new Error(`the house build failed: ${result.error || result.failures.join(', ') || result.check.missing.map(m => `missing ${m}`).join(', ')}`);
 	const { pitch, x, y, yaw, z } = overview(result.origin!);
 	await page.run(`bot.fly(${x}, ${y}, ${z}, ${yaw}, ${pitch})`);
 	await write(page, 'house');

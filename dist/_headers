@@ -1,3 +1,18 @@
 # Wrangler serves HTML as utf-8 and a header charset beats the page's <meta charset>, so the header drops it and the packer's codec decides.
+# 'unsafe-inline' allows the <body onload> decoder and 'unsafe-eval' the eval of the inflated script.
 /
-	Content-Type: text/html
+  Content-Type: text/html
+  Content-Security-Policy: default-src 'none'; img-src 'self'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'
+  Link: </about>; rel="describedby", </llms.txt>; rel="alternate"; type="text/markdown"
+/about
+  Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'
+/hero.webp
+  Cache-Control: public, max-age=86400
+/favicon.ico
+  Cache-Control: public, max-age=604800
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000
+  Cross-Origin-Opener-Policy: same-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()

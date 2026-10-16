@@ -6,6 +6,13 @@ dist/*
 !dist/index.html
 !dist/.assetsignore
 !dist/_headers
+!dist/about.html
+!dist/about.js
+!dist/robots.txt
+!dist/sitemap.xml
+!dist/llms.txt
+!dist/hero.webp
+!dist/favicon.ico
 
 # logs
 logs

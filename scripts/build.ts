@@ -8,7 +8,7 @@ import { shader } from './shader.ts';
 import { wgslPlugin } from './wgsl-plugin.ts';
 
 const root = `${import.meta.dir}/..`;
-/** The shader names are annealed in `CHAINS` parallel chains of `ROUNDS` steps (one per physical core), the smallest script wins. */
+/** The shader names are annealed in `CHAINS` parallel chains of `ROUNDS` steps (a fixed count whatever the core count, the output depends on it), the smallest script wins. */
 const CHAINS = 6;
 const ROUNDS = 42000;
 
@@ -34,7 +34,7 @@ async function bundle(dev: boolean) {
 
 /** `pack(js)` kept as one line `codec deflated` followed by the page. */
 async function packed(js: string): Promise<Packed> {
-	const bytes = (await cached('pack', ['pack.ts', 'lib/deflate.ts', 'lib/pool.ts', 'lib/pool.worker.ts'], [js], async () => {
+	const bytes = (await cached('pack', ['pack.ts', 'lib/deflate.ts', 'lib/pool.ts', 'lib/pool.worker.ts', 'lib/random.ts'], [js], async () => {
 		const { codec, deflated, html } = await pack(js);
 		return Buffer.concat([Buffer.from(`${codec} ${deflated}\n`), html]);
 	}))!;
@@ -56,7 +56,7 @@ export async function build(dev: boolean, { out = `${root}/dist`, verbose = fals
 	const wrapped = `(async()=>{${code}})()`;
 	const src = await shader(`${root}/src/shader.wgsl`);
 	const js = new TextDecoder().decode(
-		await cached('shrink', ['shrink.ts', 'transform.ts', 'print.ts', 'rename.ts', 'wgsl.ts', 'lib/pool.ts', 'lib/pool.worker.ts'], [wrapped, `${CHAINS}/${ROUNDS}`], async () => {
+		await cached('shrink', ['shrink.ts', 'transform.ts', 'print.ts', 'rename.ts', 'wgsl.ts', 'lib/pool.ts', 'lib/pool.worker.ts', 'lib/random.ts'], [wrapped, `${CHAINS}/${ROUNDS}`], async () => {
 			const scripts = await Promise.all(Array.from({ length: CHAINS }, (_, seed) => shrunk(wrapped, { rounds: ROUNDS, seed: seed + 1, src })));
 			const size = (s: Uint8Array | undefined) => Bun.deflateSync(Uint8Array.from(s!),{ level: 12, library: 'libdeflate' }).length;
 			return scripts.reduce((best, s) => (size(s) < size(best) ? s : best));
@@ -75,6 +75,13 @@ export async function build(dev: boolean, { out = `${root}/dist`, verbose = fals
 	if (html.length > 4096) throw new Error(line);
 	await Bun.write(`${out}/index.html`, html);
 	await Bun.write(sizeFile, JSON.stringify({ deflated, page: html.length }));
+	/** The README, the about page and llms.txt quote the page size as `N of 4096 bytes`, the about page also in `data-bytes` spans. */
+	if (out === resolve(`${root}/dist`))
+		for (const file of [`${root}/README.md`, `${out}/about.html`, `${out}/llms.txt`]) {
+			const text = await Bun.file(file).text();
+			const synced = text.replace(/\d+(?= of 4096 bytes)|(?<=data-bytes>)\d+/g, String(html.length));
+			if (synced !== text) await Bun.write(file, synced);
+		}
 	return verbose ? `${line}\nbundle ${Object.entries(inputs).map(([path, { bytesInOutput }]) => `${path.split('/').pop()} ${bytesInOutput}`).join(', ')} B` : line;
 }
 

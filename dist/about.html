@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<meta name=theme-color content="#0b0d0c">
+<title>4k-minecraft: Minecraft 4k remade in 4096 bytes of WebGPU</title>
+<meta name=description content="A remake of Notch's Minecraft 4K in one HTML page using 4085 of 4096 bytes: a 1024x1024x128 voxel world generated and ray-marched by one WebGPU compute shader.">
+<meta name=author content="Pierre Roy (Ayfri)">
+<link rel=canonical href=https://4k-minecraft.ayfri.com/about>
+<link rel=icon href=/favicon.ico sizes="48x48 32x32 16x16">
+<meta property=og:type content=website>
+<meta property=og:title content="4k-minecraft: Minecraft 4k remade in 4096 bytes of WebGPU">
+<meta property=og:description content="A remake of Notch's Minecraft 4K in one HTML page using 4085 of 4096 bytes: a 1024x1024x128 voxel world generated and ray-marched by one WebGPU compute shader.">
+<meta property=og:url content=https://4k-minecraft.ayfri.com/about>
+<meta property=og:image content=https://4k-minecraft.ayfri.com/hero.webp>
+<meta property=og:image:width content=1600>
+<meta property=og:image:height content=900>
+<meta property=og:image:type content=image/webp>
+<meta property=og:image:alt content="A foggy grey stone mountain rising above dark grass terraces under a pale blue sky">
+<meta name=twitter:card content=summary_large_image>
+<script type="application/ld+json">
+{
+	"@context": "https://schema.org",
+	"@type": "VideoGame",
+	"name": "4k-minecraft",
+	"alternateName": "Minecraft 4k remake",
+	"description": "A remake of Notch's 2009 Minecraft 4K as one self-extracting HTML page using 4085 of 4096 bytes: a 1024x1024x128 voxel world generated and ray-marched by one WebGPU compute shader.",
+	"url": "https://4k-minecraft.ayfri.com/",
+	"image": "https://4k-minecraft.ayfri.com/hero.webp",
+	"author": {
+		"@type": "Person",
+		"name": "Pierre Roy",
+		"alternateName": "Ayfri",
+		"url": "https://ayfri.com"
+	},
+	"genre": "Sandbox",
+	"gamePlatform": "Web browser",
+	"applicationCategory": "GameApplication",
+	"operatingSystem": "Windows",
+	"playMode": "SinglePlayer",
+	"isAccessibleForFree": true,
+	"inLanguage": "en",
+	"datePublished": "2026-10-16"
+}
+</script>
+<style>
+:root{--bg:#0b0d0c;--fg:#e8e6df;--muted:#8a8f87;--line:#1f2420;--grass:#79b84f;--grass-dark:#5d9b3a;--dirt:#8b5a3c;--stone:#7d7d7d;--mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace}
+*{box-sizing:border-box}
+html{background:var(--bg);scroll-behavior:smooth}
+body{background:var(--bg);color:var(--fg);counter-reset:s;font:1rem/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0}
+::selection{background:var(--grass);color:var(--bg)}
+a{color:var(--fg);text-decoration-color:var(--grass-dark);text-decoration-thickness:2px;text-underline-offset:.25em}
+a:hover{color:var(--grass)}
+:focus-visible{outline:2px solid var(--grass);outline-offset:4px}
+code,kbd,pre,.mono{font-family:var(--mono)}
+.wrap{margin-inline:auto;width:min(1080px,100% - 3rem)}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+.hero{display:flex;flex-direction:column;isolation:isolate;justify-content:space-between;min-height:100svh;overflow:hidden;padding:1.5rem 0 4.5rem;position:relative}
+.hero>img{height:100%;inset:0;object-fit:cover;position:absolute;width:100%;z-index:-2}
+.hero::after{background:linear-gradient(to top,var(--bg) 0,rgba(11,13,12,.88) 22%,rgba(11,13,12,0) 62%),linear-gradient(to bottom,rgba(11,13,12,.75),rgba(11,13,12,0) 22%);content:"";inset:0;position:absolute;z-index:-1}
+.meta{color:var(--fg);display:flex;font:.85rem/1 var(--mono);gap:.75rem;letter-spacing:.08em;margin:0 auto;max-width:none;text-transform:uppercase}
+.sep{color:var(--muted)}
+h1{font-size:clamp(3rem,11vw,7rem);font-weight:800;letter-spacing:-.045em;line-height:.95;margin:0 0 1.25rem}
+h1 .w{display:inline-block}
+h1 .k{color:var(--grass)}
+.lead{font-size:clamp(1.05rem,2vw,1.25rem);margin:0;max-width:34rem}
+.actions{align-items:center;display:flex;flex-wrap:wrap;gap:1rem 2rem;margin-top:2.25rem}
+.play{background:var(--grass);box-shadow:0 4px 0 #3b6a24;color:var(--bg);display:inline-block;font:700 1.1rem/1 var(--mono);letter-spacing:.14em;overflow:hidden;padding:1rem 2.4rem;position:relative;text-decoration:none;text-transform:uppercase}
+.play::after{background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.4) 50%,transparent 62%);content:"";inset:0;pointer-events:none;position:absolute;transform:translateX(-100%)}
+.play:hover{background:#8ac95d;color:var(--bg)}
+.play:active{box-shadow:0 2px 0 #3b6a24;transform:translateY(2px)}
+.play:focus-visible{outline-color:var(--fg)}
+.more{font:.9rem var(--mono);letter-spacing:.04em}
+
+section{border-top:1px solid var(--line);padding:6rem 0}
+.cols{display:grid;gap:4rem;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr)}
+h2{font-size:clamp(1.6rem,3.4vw,2.4rem);font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0 0 1rem}
+h2::before{color:var(--grass);content:"0" counter(s) / "";counter-increment:s;display:block;font:400 .85rem/1 var(--mono);letter-spacing:.08em;margin-bottom:1rem}
+p{margin:0 0 1rem;max-width:40rem}
+.note{color:var(--muted);font-size:.92rem}
+
+.grid{background:var(--bg);border:1px solid var(--line);max-width:100%;width:386px}
+.pix{position:relative}
+canvas{aspect-ratio:1;display:block;height:auto;image-rendering:pixelated;width:100%}
+.tail{background:var(--fg);height:calc(100% / 64);left:calc(var(--x) * 100% / 64);opacity:.5;pointer-events:none;position:absolute;top:calc(var(--y) * 100% / 64);width:calc(min(var(--free), 64 - var(--x)) * 100% / 64)}
+.big{font:700 clamp(1.8rem,4.5vw,2.8rem)/1.1 var(--mono);letter-spacing:-.03em;margin:1.5rem 0}
+.count{display:inline-block;text-align:right;width:4ch}
+.sr{clip-path:inset(50%);height:1px;overflow:hidden;position:absolute;white-space:nowrap;width:1px}
+.legend{display:grid;font:.9rem var(--mono);gap:0;grid-template-columns:1fr auto;margin:0;max-width:26rem}
+.legend dt,.legend dd{align-items:center;border-top:1px solid var(--line);display:flex;gap:.75rem;margin:0;padding:.6rem 0}
+.legend dd{color:var(--muted);justify-content:flex-end}
+.sw{border:1px solid var(--line);display:inline-block;flex:none;height:.9rem;width:.9rem}
+.sw.stone{background:var(--stone)}
+.sw.game{background:linear-gradient(to bottom,var(--grass) 50%,var(--dirt) 50%)}
+
+table{border-collapse:collapse;font:.9rem/1.45 var(--mono);width:100%}
+th,td{border-bottom:1px solid var(--line);padding:.8rem .75rem .8rem 0;text-align:left;vertical-align:top}
+thead th{color:var(--muted);font-weight:400;letter-spacing:.06em;text-transform:uppercase}
+tbody th{color:var(--muted);font-weight:400;white-space:nowrap}
+td:last-child{color:var(--grass)}
+.browsers{margin:1.5rem 0}
+.browsers td:last-child{color:var(--muted)}
+.browsers .yes{color:var(--grass)}
+.browsers .no{color:#c98a63}
+.num{font-variant-numeric:tabular-nums}
+
+.keys{display:grid;gap:0;grid-template-columns:max-content minmax(0,1fr);margin:0}
+.keys dt,.keys dd{border-bottom:1px solid var(--line);margin:0;padding:.7rem 0}
+.keys dt{padding-right:2rem;white-space:nowrap}
+kbd{background:#121513;border:1px solid #3a403b;border-radius:2px;box-shadow:0 2px 0 #3a403b;color:var(--fg);display:inline-block;font-size:.85rem;line-height:1.2;min-width:1.9rem;padding:.15rem .5rem;text-align:center}
+
+.steps{counter-reset:n;display:grid;gap:2rem 0;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));list-style:none;margin:3rem 0 2.5rem;padding:0}
+.steps li{border-top:1px solid var(--line);counter-increment:n;padding:1rem 1.25rem 0 0;position:relative}
+.steps li::after{background:#3b6a24;content:"";height:1px;left:0;position:absolute;right:0;top:-1px;transform-origin:left}
+.steps li::before{color:var(--grass);content:counter(n,decimal-leading-zero);display:block;font:400 .85rem/1 var(--mono);margin-bottom:.75rem}
+.steps h3{font-size:1.05rem;margin:0 0 .5rem}
+.steps p{color:var(--muted);font-size:.92rem;line-height:1.55;margin:0}
+.steps code{color:var(--fg);font-size:.85em}
+pre{background:#101311;border:1px solid var(--line);border-left:3px solid var(--grass-dark);font-size:.82rem;line-height:1.6;margin:0 0 .75rem;overflow-wrap:anywhere;padding:1rem 1.25rem;white-space:pre-wrap}
+
+.req{align-items:baseline;display:grid;gap:.5rem 4rem;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr)}
+.req p{margin:0}
+.req .lead{font-size:1.15rem}
+footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padding:2.5rem 0 3rem}
+footer p{margin:0 0 .5rem;max-width:none}
+footer a{color:var(--fg)}
+
+@media(max-width:760px){
+section{padding:4rem 0}
+.cols,.req{gap:2.5rem;grid-template-columns:minmax(0,1fr)}
+.steps{gap:0;grid-template-columns:minmax(0,1fr)}
+.steps li{border-left:1px solid var(--line);border-top:0;padding:0 0 2rem 1.25rem}
+.steps li::after{bottom:0;height:auto;right:auto;top:0;transform-origin:top;width:1px;left:-1px}
+.keys dt{padding-right:1rem}
+.hero{padding-bottom:3rem}
+th,td{padding-right:.5rem}
+table{font-size:.8rem}
+tbody th{white-space:normal}
+}
+
+@property --n{syntax:'<integer>';inherits:false;initial-value:0}
+@media(prefers-reduced-motion:no-preference){
+@keyframes settle{from{transform:scale(1.08)}}
+@keyframes fade{from{opacity:0}}
+@keyframes rise{from{opacity:0;transform:translateY(1.25rem)}}
+@keyframes shine{to{transform:translateX(100%)}}
+@keyframes blink{50%{opacity:0}}
+.hero>img{animation:settle 2.5s cubic-bezier(.16,.8,.3,1) both}
+.meta{animation:fade .4s ease-out .05s both}
+h1 .w{animation:rise .6s cubic-bezier(.16,.8,.3,1) .15s both}
+h1 .k{animation-delay:.27s}
+.hero .lead{animation:rise .5s cubic-bezier(.16,.8,.3,1) .5s both}
+.actions{animation:rise .5s cubic-bezier(.16,.8,.3,1) .65s both}
+.play{transition:transform .1s ease-out,box-shadow .1s ease-out}
+.play:hover{box-shadow:0 6px 0 #3b6a24;transform:translateY(-2px)}
+.play:hover::after{animation:shine .6s steps(8) both}
+.play:active{box-shadow:0 2px 0 #3b6a24;transform:translateY(2px)}
+kbd{transition:transform .06s ease-out,box-shadow .06s ease-out}
+kbd:hover{box-shadow:0 0 0 #3a403b;transform:translateY(2px)}
+.tail{animation:blink 1s steps(1) infinite}
+@supports (animation-timeline:view()){
+@keyframes build{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0)}}
+@keyframes count{from{--n:0}to{--n:var(--bytes)}}
+@keyframes draw{from{transform:scaleX(0)}}
+@keyframes drawy{from{transform:scaleY(0)}}
+.pix{animation:build steps(64) both;animation-range:entry 10% entry 100%;animation-timeline:view()}
+.live{animation:count linear both;animation-range:entry 20% entry 100%;animation-timeline:view()}
+.live>*{display:none}
+.live{counter-reset:n var(--n)}
+.live::before{content:counter(n)}
+.cols>:not(.grid,table),.req>*,#how .wrap>:not(.steps){animation:rise linear both;animation-range:entry 0% entry 90%;animation-timeline:view()}
+tbody tr{animation:rise linear both;animation-range:entry 0% entry 100%;animation-timeline:view()}
+.steps li{animation:rise linear both;animation-range:entry calc(var(--i, 0) * 10%) entry 100%;animation-timeline:--s;view-timeline:--s}
+.steps li::after{animation:draw linear both;animation-range:entry calc(var(--i, 0) * 10%) entry 100%;animation-timeline:--s}
+.steps li:nth-child(2){--i:1}
+.steps li:nth-child(3){--i:2}
+.steps li:nth-child(4){--i:3}
+.steps li:nth-child(5){--i:4}
+@media(max-width:760px){.steps li::after{animation-name:drawy}}
+}
+}
+</style>
+<script src=/about.js defer></script>
+</head>
+<body>
+<header class=hero>
+<img src=/hero.webp width=1600 height=900 alt="A foggy grey stone mountain rising above dark grass terraces under a pale blue sky" fetchpriority=high>
+<p class="meta wrap"><span><span data-bytes>4085</span> B</span><span class=sep aria-hidden=true>/</span><span>WebGPU</span><span class=sep aria-hidden=true>/</span><span>2026</span></p>
+<div class=wrap>
+<h1><span class=w>Minecraft</span> <span class="w k">4k</span></h1>
+<p class=lead>Notch's 2009 Minecraft 4k, remade as one HTML page that uses <span data-bytes>4085</span> of 4096 bytes.</p>
+<div class=actions>
+<a class=play href=/>Play</a>
+<a class=more href=#how>How it fits</a>
+</div>
+</div>
+</header>
+
+<main>
+<section>
+<div class="wrap cols">
+<div class=grid><div class=pix>
+<canvas id=bytes width=64 height=64 role=img aria-label="The bytes of index.html drawn as a 64 by 64 grid, decoder in gray, compressed game in grass and dirt colors"></canvas>
+<span class=tail id=tail aria-hidden=true hidden></span>
+</div></div>
+<div>
+<h2>The whole game, byte by byte</h2>
+<p>Each square is one byte of <code>index.html</code>, read live from the page you play.</p>
+<p class=big><span class=sr><span data-bytes>4085</span> of 4096 bytes</span><span class=count id=readout aria-hidden=true><span data-bytes>4085</span></span><span aria-hidden=true> / 4096 B</span></p>
+<dl class=legend>
+<dt><span class="sw stone"></span>decoder</dt><dd id=decoder>-</dd>
+<dt><span class="sw game"></span>compressed game</dt><dd id=stream>-</dd>
+<dt><span class=sw></span>free</dt><dd id=free>-</dd>
+</dl>
+</div>
+</div>
+</section>
+
+<section id=then>
+<div class="wrap cols">
+<div>
+<h2>Then and now</h2>
+<p>Notch's entry for the Java 4K contest, released in December 2009, drew a small world with a CPU raycaster. This one hands both the world and the rays to the GPU.</p>
+</div>
+<table>
+<thead><tr><td></td><th scope=col>2009 Java 4K</th><th scope=col>This</th></tr></thead>
+<tbody>
+<tr><th scope=row>Size</th><td class=num>2581 B Java applet</td><td class=num><span data-bytes>4085</span> B HTML</td></tr>
+<tr><th scope=row>World</th><td class=num>64 x 64 x 63</td><td class=num>1024 x 1024 x 128 (128 MiB)</td></tr>
+<tr><th scope=row>Renderer</th><td>CPU raycaster at about 214 x 120</td><td>WebGPU compute shader at full window resolution</td></tr>
+<tr><th scope=row>Generation</th><td>CPU at load</td><td>compute shader at load</td></tr>
+<tr><th scope=row>Placeable</th><td>grass</td><td class=num>16: 3 plants, 10 blocks, 3 ores</td></tr>
+<tr><th scope=row>Lighting</th><td>face shading</td><td>ambient occlusion, sun shadows, day and night</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id=controls>
+<div class="wrap cols">
+<div>
+<h2>Controls</h2>
+<p>Click the page first to lock the pointer.</p>
+</div>
+<dl class=keys>
+<dt><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dt><dd>Walk. Physical keys, so Z Q S D on AZERTY.</dd>
+<dt><kbd>Left Shift</kbd></dt><dd>Sprint</dd>
+<dt><kbd>Space</kbd></dt><dd>Jump, or swim up</dd>
+<dt><kbd>Mouse</kbd></dt><dd>Look</dd>
+<dt><kbd>Left click</kbd></dt><dd>Break</dd>
+<dt><kbd>Right click</kbd></dt><dd>Place</dd>
+<dt><kbd>1</kbd> - <kbd>9</kbd> <kbd>0</kbd></dt><dd>Select a block: grass, dirt, stone, sand, log, leaves, planks, bricks, snow, glass</dd>
+<dt><kbd>Wheel</kbd></dt><dd>Cycle every placeable block, plants and ores included</dd>
+</dl>
+</div>
+</section>
+
+<section id=how>
+<div class=wrap>
+<h2>How it fits</h2>
+<p>The page is a decoder and a deflate stream. The decoder is all the page can afford, so everything else is squeezed before it gets there.</p>
+<ol class=steps>
+<li><h3>Source</h3><p>TypeScript for the game and WGSL for the shader. World constants are shared by name.</p></li>
+<li><h3>Shrink</h3><p>An in-house minifier rewrites the AST and picks every name by deflate size, the shader's names too.</p></li>
+<li><h3>Deflate</h3><p>An in-house encoder searches the bit stream for one without the 10 bytes the parser or <code>l9</code> would change, against zopfli and libdeflate.</p></li>
+<li><h3>Page</h3><p><code>charset=l9</code> reads each byte as one character. The stream sits raw in <code>&lt;canvas&gt;&lt;xmp&gt;</code>.</p></li>
+<li><h3>Boot</h3><p>The browser inflates it with <code>DecompressionStream('deflate-raw')</code> and evals the result.</p></li>
+</ol>
+<pre><code>&lt;meta charset=l9&gt;&lt;body onload='new Response(new Response(Uint8Array.from(c.textContent,c=&gt;c.charCodeAt())).body.pipeThrough(new DecompressionStream("deflate-raw"))).text().then(eval)'&gt;&lt;canvas id=c&gt;&lt;xmp&gt;</code></pre>
+<p class=note>Then the raw deflate stream. No decompressor, no zlib header.</p>
+</div>
+</section>
+
+<section id=requirements>
+<div class="wrap req">
+<h2>Requirements</h2>
+<div>
+<p class=lead>Needs WebGPU with immediates, a keyboard and a mouse. Today that means Chrome 150+ on Windows.</p>
+<table class=browsers>
+<thead><tr><th scope=col>Browser</th><th scope=col>Runs</th><th scope=col>Why</th></tr></thead>
+<tbody>
+<tr><th scope=row>Chrome 150+ on Windows</th><td class=yes>yes</td><td>tested on Chrome 155</td></tr>
+<tr><th scope=row>Edge 150+, Chrome on Linux, ChromeOS</th><td class=yes>should</td><td>untested, same engine</td></tr>
+<tr><th scope=row>Chrome on macOS</th><td class=no>no</td><td>the canvas can't be <code>rgba8unorm</code> there yet</td></tr>
+<tr><th scope=row>Firefox 158</th><td class=no>no</td><td>no immediates, tested: everything else works</td></tr>
+<tr><th scope=row>Safari 26</th><td class=no>no</td><td>no immediates</td></tr>
+<tr><th scope=row>Phones, tablets</th><td class=no>no</td><td>the controls need a keyboard and a mouse</td></tr>
+</tbody>
+</table>
+<p class=note>Immediates are the tiny per-dispatch uniforms set with <code>setImmediates</code> and read as <code>var&lt;immediate&gt;</code> in WGSL. They save the bytes of a uniform buffer.</p>
+</div>
+</div>
+</section>
+</main>
+
+<footer>
+<div class=wrap>
+<p>Made with ❤️ by <a href=https://ayfri.com>Ayfri</a></p>
+<p>Not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang Synergies AB.</p>
+</div>
+</footer>
+</body>
+</html>
