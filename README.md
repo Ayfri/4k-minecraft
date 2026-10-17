@@ -62,8 +62,8 @@ Chrome on Windows with WebGPU, opening the file straight from `file://`, is the 
 | Browser | Runs | Why |
 |---|---|---|
 | Chrome 150+ on Windows | yes | tested on Chrome 155 without any flag |
+| Chrome 150+ on macOS | yes | tested by a player |
 | Edge 150+, Chrome 150+ on Linux and ChromeOS | untested | same engine, WebGPU on Linux depends on the GPU ([MDN compat data](https://github.com/mdn/browser-compat-data/blob/main/api/GPUCanvasContext.json)) |
-| Chrome on macOS | no | `rgba8unorm` canvases are not supported on macOS ([crbug 40823053](https://crbug.com/40823053)) |
 | Firefox 158 | no | no immediates: `setImmediates` is undefined and naga rejects `var<immediate>` (`Capability IMMEDIATES is not supported`). Tested on Windows: WebGPU, the 128 MiB buffer, the `rgba8unorm` storage canvas, direct `GPUBuffer` and `GPUTexture` bindings and `deflate-raw` all work |
 | Safari 26 | no | no immediates ([MDN compat data](https://github.com/mdn/browser-compat-data/blob/main/api/GPUComputePassEncoder.json)) |
 | Phones and tablets | no | the controls need a keyboard and a mouse |

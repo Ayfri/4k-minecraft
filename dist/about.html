@@ -38,7 +38,7 @@
 	"genre": "Sandbox",
 	"gamePlatform": "Web browser",
 	"applicationCategory": "GameApplication",
-	"operatingSystem": "Windows",
+	"operatingSystem": "Windows, macOS",
 	"playMode": "SinglePlayer",
 	"isAccessibleForFree": true,
 	"inLanguage": "en",
@@ -279,13 +279,13 @@ tbody tr{animation:rise linear both;animation-range:entry 0% entry 100%;animatio
 <div class="wrap req">
 <h2>Requirements</h2>
 <div>
-<p class=lead>Needs WebGPU with immediates, a keyboard and a mouse. Today that means Chrome 150+ on Windows.</p>
+<p class=lead>Needs WebGPU with immediates, a keyboard and a mouse. Today that means Chrome 150+ on Windows or macOS.</p>
 <table class=browsers>
 <thead><tr><th scope=col>Browser</th><th scope=col>Runs</th><th scope=col>Why</th></tr></thead>
 <tbody>
 <tr><th scope=row>Chrome 150+ on Windows</th><td class=yes>yes</td><td>tested on Chrome 155</td></tr>
+<tr><th scope=row>Chrome 150+ on macOS</th><td class=yes>yes</td><td>tested by a player</td></tr>
 <tr><th scope=row>Edge 150+, Chrome on Linux, ChromeOS</th><td class=yes>should</td><td>untested, same engine</td></tr>
-<tr><th scope=row>Chrome on macOS</th><td class=no>no</td><td>the canvas can't be <code>rgba8unorm</code> there yet</td></tr>
 <tr><th scope=row>Firefox 158</th><td class=no>no</td><td>no immediates, tested: everything else works</td></tr>
 <tr><th scope=row>Safari 26</th><td class=no>no</td><td>no immediates</td></tr>
 <tr><th scope=row>Phones, tablets</th><td class=no>no</td><td>the controls need a keyboard and a mouse</td></tr>

@@ -46,8 +46,8 @@ The whole game, shaders included, fits in one HTML file: 4085 of 4096 bytes. How
 WebGPU with immediates (`setImmediates` and `var<immediate>`), a keyboard and a mouse.
 
 - Chrome 150+ on Windows: runs (tested on Chrome 155, no flag).
+- Chrome 150+ on macOS: runs (tested by a player).
 - Edge 150+, Chrome 150+ on Linux and ChromeOS: untested, same engine.
-- Chrome on macOS: does not run, `rgba8unorm` canvases are not supported there.
 - Firefox 158: does not run, no immediates (tested on Windows, every other feature works).
 - Safari 26: does not run, no immediates.
 - Phones and tablets: no keyboard and mouse controls.
