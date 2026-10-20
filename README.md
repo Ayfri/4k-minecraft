@@ -72,6 +72,8 @@ Immediates ship in Chrome 150 ([New in WebGPU 149-150](https://developer.chrome.
 
 ## How the 4 KB packing works
 
+[4k-minecraft: A Deflate Stream Without 10 Bytes](https://ayfri.com/articles/minecraft-in-four-kilobytes/) on ayfri.com walks through this section with byte maps and charts.
+
 **Characters as bytes.** The page is `<meta charset=l9><body onload='...'><canvas id=c><xmp>` followed by the raw compressed stream. `l9` is ISO-8859-15, which reads every byte as the character with the same code except 8 bytes (0xA4, 0xA6, 0xA8, 0xB4, 0xB8, 0xBC, 0xBD, 0xBE). `<xmp>` is raw text up to the end of the file, so the stream needs no closing tag, and it sits inside `<canvas id=c>`, whose content never renders. The `onload` decoder reads it as `c.textContent`. The HTML parser also rewrites CR to LF and NUL to U+FFFD, so 10 byte values (`FORBIDDEN` in `scripts/pack.ts`) cannot go through as they are. A stream that would close the `<xmp>` (`</xmp` followed by whitespace, `/` or `>`) is rejected.
 
 **DecompressionStream.** The stream is raw deflate, inflated in the browser with `DecompressionStream('deflate-raw')` and evaluated, so the page carries no decompressor and no zlib header or checksum.
